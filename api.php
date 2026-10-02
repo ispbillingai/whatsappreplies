@@ -752,6 +752,7 @@ if ($path === '/inbound' && $method === 'POST') {
         $key = (string)($m['key'] ?? '');
         if ($key === '') $key = sha1($phone . '|' . $waType . '|' . $ts . '|' . $text);
         $key = substr($key, 0, 64);
+        $isLid = !empty($m['lid']) ? 1 : 0;
 
         if (strlen($phone) < 7 || $text === '') {
             $results[] = ['key' => $key, 'accepted' => false, 'reason' => 'phone or text missing'];
@@ -759,16 +760,24 @@ if ($path === '/inbound' && $method === 'POST') {
         }
 
         $ins = $db->prepare(
-            'INSERT IGNORE INTO incoming_messages (user_id, device_id, phone, sender_name, message, whatsapp_type, line, dedupe_key, received_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, FROM_UNIXTIME(?))'
+            'INSERT IGNORE INTO incoming_messages (user_id, device_id, phone, is_lid, sender_name, message, whatsapp_type, line, dedupe_key, received_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, FROM_UNIXTIME(?))'
         );
-        $ins->execute([$authUserId, $deviceId, $phone, $name !== '' ? $name : null, mb_substr($text, 0, 60000), $waType,
+        $ins->execute([$authUserId, $deviceId, $phone, $isLid, $name !== '' ? $name : null, mb_substr($text, 0, 60000), $waType,
                        deviceLine($device, $waType) ?: null, $key, $ts]);
         if ($ins->rowCount() === 0) {
             $results[] = ['key' => $key, 'accepted' => true, 'duplicate' => true];
             continue;
         }
         $newId = (int)$db->lastInsertId();
+        // Backlog guard: a message older than an hour is history the phone is
+        // replaying, not a customer waiting. Keep it in the Inbox, never push it
+        // (the support panel would auto-reply to a stale chat).
+        if ($ts < time() - 3600) {
+            $db->prepare("UPDATE incoming_messages SET webhook_status = 'skipped', webhook_response = 'too old to forward (backlog)', webhook_at = NOW() WHERE id = ?")->execute([$newId]);
+            $results[] = ['key' => $key, 'accepted' => true, 'id' => $newId, 'stale' => true];
+            continue;
+        }
         $newRows[] = $newId;
         $results[] = ['key' => $key, 'accepted' => true, 'id' => $newId];
     }

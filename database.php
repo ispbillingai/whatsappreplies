@@ -14,7 +14,7 @@ ini_set('error_log', __DIR__ . '/error.log');
  * applyMigrations() below, otherwise existing installs will never pick it up:
  * migrations only run when the recorded version is lower than this number.
  */
-define('WA_SCHEMA_VERSION', 4);
+define('WA_SCHEMA_VERSION', 5);
 
 function getDB() {
     static $pdo = null;
@@ -267,6 +267,8 @@ function applyMigrations($db) {
         ['devices', 'inbound_queued', "ALTER TABLE devices ADD COLUMN inbound_queued INT NULL"],
         ['devices', 'last_notif_at', "ALTER TABLE devices ADD COLUMN last_notif_at DATETIME NULL"],
         ['devices', 'last_notif_info', "ALTER TABLE devices ADD COLUMN last_notif_info VARCHAR(255) NULL"],
+        // `phone` holds WhatsApp's internal LID, not a dialable number (saved contact whose number is hidden)
+        ['incoming_messages', 'is_lid', "ALTER TABLE incoming_messages ADD COLUMN is_lid TINYINT(1) NOT NULL DEFAULT 0 AFTER phone"],
         // A reply to an incoming message must leave from the SAME phone+app it
         // arrived on, so pinned messages are never reassigned to another device.
         ['messages', 'pinned', "ALTER TABLE messages ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER priority"],

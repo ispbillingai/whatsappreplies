@@ -148,7 +148,8 @@ function deliverIncomingWebhook(array $row): bool {
         'wa_type'   => $row['whatsapp_type'],
         'message'   => [
             'id'        => 'app-in-' . $row['id'],
-            'chatId'    => $row['phone'] . '@c.us',
+            // A LID is WhatsApp's internal id, not a number: "@lid" tells the panel so.
+            'chatId'    => $row['phone'] . (!empty($row['is_lid']) ? '@lid' : '@c.us'),
             'fromMe'    => false,
             'timestamp' => $ts,
             'pushName'  => (string)($row['sender_name'] ?? ''),

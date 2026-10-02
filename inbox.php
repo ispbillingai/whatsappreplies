@@ -136,6 +136,7 @@ renderHeader('Inbox', 'inbox');
                         <td>
                             <div class="fw-semibold small"><?= htmlspecialchars($r['sender_name'] ?: 'Unknown') ?></div>
                             <code class="small"><?= htmlspecialchars($r['phone']) ?></code>
+                            <?php if (!empty($r['is_lid'])): ?><span class="badge bg-secondary" title="WhatsApp hid this contact's number; this is its internal id">number hidden</span><?php endif; ?>
                         </td>
                         <td class="small" style="max-width:420px; white-space:pre-wrap; word-break:break-word;"><?= htmlspecialchars(mb_strimwidth($r['message'], 0, 400, '…')) ?></td>
                         <td class="small">
