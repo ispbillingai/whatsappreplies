@@ -1,6 +1,6 @@
 {
-    "versionCode": 9,
-    "versionName": "1.4.2",
+    "versionCode": 10,
+    "versionName": "1.4.3",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.4.2: Saved contacts are never mistaken for a phone number - the number comes from Contacts or the chat is marked 'number hidden'. Allow the Contacts permission when asked."
+    "changelog": "v1.4.3: Correct sender numbers. The number is read from the notification title (new customers) or Contacts (saved contacts); WhatsApp's internal ids are never mistaken for a number."
 }
