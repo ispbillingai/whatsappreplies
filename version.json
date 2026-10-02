@@ -1,6 +1,6 @@
 {
-    "versionCode": 3,
-    "versionName": "1.2.0",
+    "versionCode": 4,
+    "versionName": "1.3.0",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.2.0: Sign in with your dashboard email and password - no API key to copy. v1.1.0: Forward incoming WhatsApp messages; Monitor card to choose WhatsApp, Business or Both and set this phone's numbers."
+    "changelog": "v1.3.0: One key per phone - add the phone on the dashboard's Devices page and paste its key into the app. No numbers to type on the phone. Monitor card picks WhatsApp, Business or Both."
 }

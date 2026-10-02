@@ -251,7 +251,7 @@ renderHeader('Dashboard', 'dashboard');
                         <i class="bi bi-phone text-warning" style="font-size:18px;"></i>
                         <strong>For the FreeISP Replies App:</strong>
                     </div>
-                    <p class="mb-0 opacity-75">Sign in inside the app with the <strong>same email and password</strong> you use for this dashboard. Nothing to copy.</p>
+                    <p class="mb-0 opacity-75">Add the phone on the <strong>Devices</strong> page, copy its <strong>device key</strong> into the app. Each phone has its own key, so the dashboard always knows which phone is which.</p>
                 </div>
             </div>
         </div>

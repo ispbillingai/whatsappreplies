@@ -13,6 +13,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf($_POST['csrf'] ?? '')) {
     $action = $_POST['action'] ?? '';
     $deviceId = $_POST['device_id'] ?? '';
 
+    // Add a phone: the key it gets is what you type into the app. The row's
+    // device_id is ours; the phone never has to identify itself.
+    if ($action === 'add') {
+        $name = trim($_POST['device_name'] ?? '');
+        $waType = in_array($_POST['wa_type'] ?? '', ['whatsapp', 'whatsapp_business', 'both']) ? $_POST['wa_type'] : 'both';
+        $num = preg_replace('/[^0-9]/', '', $_POST['wa_number'] ?? '');
+        $biz = preg_replace('/[^0-9]/', '', $_POST['wa_business_number'] ?? '');
+        $needNum = $waType !== 'whatsapp_business' && strlen($num) < 9;
+        $needBiz = $waType !== 'whatsapp' && strlen($biz) < 9;
+        if ($name === '') {
+            flash('Give the phone a name', 'error');
+        } elseif ($needNum || $needBiz) {
+            flash('Enter the phone WhatsApp number(s) with country code - replies are sent from that number', 'error');
+        } else {
+            $newId = 'dev-' . bin2hex(random_bytes(8));
+            $key = bin2hex(random_bytes(20));
+            $db->prepare('INSERT INTO devices (user_id, device_id, device_key, device_name, whatsapp_type, wa_number, wa_business_number) VALUES (?, ?, ?, ?, ?, ?, ?)')
+               ->execute([$userId, $newId, $key, $name, $waType, $num ?: null, $biz ?: null]);
+            flash("Device \"$name\" added. Copy its key into the app on that phone.");
+        }
+    }
+
+    // New key for a phone (old one stops working at once)
+    if ($action === 'new_key' && $deviceId) {
+        $key = bin2hex(random_bytes(20));
+        $where = $isAdminUser ? '' : ' AND user_id = ?';
+        $params = $isAdminUser ? [$key, $deviceId] : [$key, $deviceId, $userId];
+        $db->prepare("UPDATE devices SET device_key = ? WHERE device_id = ? $where")->execute($params);
+        flash('New key made. Update the app on that phone.');
+    }
+
     if ($action === 'toggle' && $deviceId) {
         $where = $isAdminUser ? '' : ' AND user_id = ?';
         $params = $isAdminUser ? [$deviceId] : [$deviceId, $userId];
@@ -210,6 +241,55 @@ renderHeader('Devices', 'devices');
     </div>
 </div>
 
+<!-- Add a phone -->
+<div class="card mb-3">
+    <div class="card-header py-3"><i class="bi bi-plus-circle"></i> Add a phone</div>
+    <div class="card-body">
+        <form method="POST" class="row g-2 align-items-end">
+            <input type="hidden" name="csrf" value="<?= csrfToken() ?>">
+            <input type="hidden" name="action" value="add">
+            <input type="hidden" name="view" value="<?= $showAll ? 'all' : 'mine' ?>">
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Phone name</label>
+                <input type="text" name="device_name" class="form-control form-control-sm" placeholder="e.g. Support Samsung" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Watches</label>
+                <select name="wa_type" class="form-select form-select-sm" id="addWaType" onchange="toggleAddNumbers()">
+                    <option value="both">Both apps</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="whatsapp_business">Business</option>
+                </select>
+            </div>
+            <div class="col-md-2" id="addNumWrap">
+                <label class="form-label small text-muted">WhatsApp number</label>
+                <input type="text" name="wa_number" class="form-control form-control-sm" placeholder="2547XXXXXXXX">
+            </div>
+            <div class="col-md-2" id="addBizWrap">
+                <label class="form-label small text-muted">Business number</label>
+                <input type="text" name="wa_business_number" class="form-control form-control-sm" placeholder="2547XXXXXXXX">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-sm btn-wa w-100"><i class="bi bi-key"></i> Add &amp; make key</button>
+            </div>
+        </form>
+        <small class="text-muted d-block mt-2">The number(s) are this phone's own WhatsApp numbers - the line customers write to and replies leave from. Then copy the key from the table into the app on that phone.</small>
+    </div>
+</div>
+<script>
+function toggleAddNumbers() {
+    var t = document.getElementById('addWaType').value;
+    document.getElementById('addNumWrap').style.display = t === 'whatsapp_business' ? 'none' : '';
+    document.getElementById('addBizWrap').style.display = t === 'whatsapp' ? 'none' : '';
+}
+function copyDevKey(btn, key) {
+    navigator.clipboard.writeText(key).then(function () {
+        var i = btn.querySelector('i'); i.className = 'bi bi-check-lg';
+        setTimeout(function () { i.className = 'bi bi-clipboard'; }, 1500);
+    });
+}
+</script>
+
 <!-- Devices Table -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
@@ -242,7 +322,7 @@ renderHeader('Devices', 'devices');
                     <tr>
                         <th>Status</th>
                         <th>Device</th>
-                        <th>Device ID</th>
+                        <th>Device key</th>
                         <th>WhatsApp</th>
                         <th>Numbers</th>
                         <?php if ($showAll): ?><th>User</th><?php endif; ?>
@@ -268,7 +348,7 @@ renderHeader('Devices', 'devices');
                             <?php elseif ($isActive): ?>
                                 <span class="badge bg-success">Online</span>
                             <?php else: ?>
-                                <span class="badge bg-warning text-dark">New</span>
+                                <span class="badge bg-warning text-dark" title="Key not used yet - put it in the app">Waiting for app</span>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -285,7 +365,30 @@ renderHeader('Devices', 'devices');
                                 </span>
                             </div>
                         </td>
-                        <td><code class="small"><?= htmlspecialchars($shortId) ?>...</code></td>
+                        <td>
+                            <?php if (!empty($dev['device_key'])): ?>
+                            <div class="d-flex align-items-center gap-1">
+                                <code class="small" title="<?= htmlspecialchars($dev['device_key']) ?>"><?= htmlspecialchars(substr($dev['device_key'], 0, 8)) ?>…</code>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Copy key for the app"
+                                        onclick="copyDevKey(this, '<?= htmlspecialchars($dev['device_key']) ?>')"><i class="bi bi-clipboard"></i></button>
+                                <form method="POST" class="d-inline" onsubmit="return confirm('Make a new key? The old one stops working.')">
+                                    <input type="hidden" name="csrf" value="<?= csrfToken() ?>">
+                                    <input type="hidden" name="view" value="<?= $showAll ? 'all' : 'mine' ?>">
+                                    <input type="hidden" name="action" value="new_key">
+                                    <input type="hidden" name="device_id" value="<?= htmlspecialchars($dev['device_id']) ?>">
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="New key"><i class="bi bi-arrow-repeat"></i></button>
+                                </form>
+                            </div>
+                            <?php else: ?>
+                            <form method="POST" class="d-inline">
+                                <input type="hidden" name="csrf" value="<?= csrfToken() ?>">
+                                <input type="hidden" name="view" value="<?= $showAll ? 'all' : 'mine' ?>">
+                                <input type="hidden" name="action" value="new_key">
+                                <input type="hidden" name="device_id" value="<?= htmlspecialchars($dev['device_id']) ?>">
+                                <button class="btn btn-sm btn-outline-primary py-0 px-1" title="Make a key for this phone"><i class="bi bi-key"></i> Make key</button>
+                            </form>
+                            <?php endif; ?>
+                        </td>
                         <td>
                             <form method="POST" class="d-inline">
                                 <input type="hidden" name="csrf" value="<?= csrfToken() ?>">
@@ -376,7 +479,7 @@ renderHeader('Devices', 'devices');
                     <tr><td><span class="badge bg-success">Online</span></td><td>Device is active. Last message was delivered successfully.</td></tr>
                     <tr><td><span class="badge bg-danger">Failed</span></td><td>Last message failed. Check the phone's WhatsApp and permissions.</td></tr>
                     <tr><td><span class="badge bg-secondary">Disabled</span></td><td>Manually disabled. Will not receive any messages.</td></tr>
-                    <tr><td><span class="badge bg-warning text-dark">New</span></td><td>Just registered. Start the relay service on the phone.</td></tr>
+                    <tr><td><span class="badge bg-warning text-dark" title="Key not used yet - put it in the app">Waiting for app</span></td><td>Just registered. Start the relay service on the phone.</td></tr>
                 </table>
             </div>
             <div class="col-md-6">

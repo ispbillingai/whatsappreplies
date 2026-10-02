@@ -14,7 +14,7 @@ ini_set('error_log', __DIR__ . '/error.log');
  * applyMigrations() below, otherwise existing installs will never pick it up:
  * migrations only run when the recorded version is lower than this number.
  */
-define('WA_SCHEMA_VERSION', 2);
+define('WA_SCHEMA_VERSION', 3);
 
 function getDB() {
     static $pdo = null;
@@ -256,6 +256,9 @@ function applyMigrations($db) {
         // A phone with both apps usually has two different numbers (two SIMs).
         ['devices', 'wa_number', "ALTER TABLE devices ADD COLUMN wa_number VARCHAR(20) NULL AFTER whatsapp_type"],
         ['devices', 'wa_business_number', "ALTER TABLE devices ADD COLUMN wa_business_number VARCHAR(20) NULL AFTER wa_number"],
+        // One key per phone, made on the Devices page and typed into the app:
+        // the server then knows exactly which phone is talking to it.
+        ['devices', 'device_key', "ALTER TABLE devices ADD COLUMN device_key VARCHAR(64) NULL UNIQUE AFTER device_id"],
         // A reply to an incoming message must leave from the SAME phone+app it
         // arrived on, so pinned messages are never reassigned to another device.
         ['messages', 'pinned', "ALTER TABLE messages ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER priority"],

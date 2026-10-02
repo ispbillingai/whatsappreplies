@@ -51,7 +51,31 @@ function authenticate() {
     $result = $stmt->fetch();
 
     if (!$result) {
-        respond(401, ['error' => 'Invalid or disabled API key']);
+        // Not an account key - maybe a DEVICE key. Each phone gets its own on
+        // the Devices page, so the server knows which phone is calling without
+        // the app having to identify itself.
+        $dstmt = $db->prepare(
+            'SELECT d.id, d.device_id, d.user_id, d.is_active AS device_active, u.is_active AS user_active
+             FROM devices d JOIN users u ON u.id = d.user_id
+             WHERE d.device_key = ?'
+        );
+        $dstmt->execute([$apiKey]);
+        $dev = $dstmt->fetch();
+        if (!$dev) {
+            respond(401, ['error' => 'Invalid or disabled API key']);
+        }
+        if (!$dev['user_active']) respond(403, ['error' => 'User account is disabled']);
+        if (!$dev['device_active']) respond(403, ['error' => 'This device is disabled on the dashboard']);
+        $keyStmt = $db->prepare('SELECT id FROM api_keys WHERE user_id = ? AND is_active = 1 ORDER BY id ASC LIMIT 1');
+        $keyStmt->execute([$dev['user_id']]);
+        $keyId = (int)($keyStmt->fetchColumn() ?: 0);
+        if (!$keyId) {
+            // Messages reference an api_key_id; make sure the account has one.
+            $db->prepare('INSERT INTO api_keys (user_id, api_key, label) VALUES (?, ?, ?)')
+               ->execute([$dev['user_id'], bin2hex(random_bytes(24)), 'Account']);
+            $keyId = (int)$db->lastInsertId();
+        }
+        return ['user_id' => (int)$dev['user_id'], 'key_id' => $keyId, 'device_id' => $dev['device_id']];
     }
 
     if (!$result['user_active']) {
@@ -62,7 +86,7 @@ function authenticate() {
     $db->prepare('UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = ?')
        ->execute([$result['key_id']]);
 
-    return ['user_id' => (int)$result['user_id'], 'key_id' => (int)$result['key_id']];
+    return ['user_id' => (int)$result['user_id'], 'key_id' => (int)$result['key_id'], 'device_id' => null];
 }
 
 // Check user subscription (placeholder for future billing)
@@ -215,47 +239,6 @@ if ($path === '/health' && $method === 'GET') {
 }
 
 // =============================================
-// POST /login - The phone app signs in with the dashboard email + password
-// (no key to copy around). Returns the account's internal API key, which the
-// app then uses for every other call. Created on the fly if the account has
-// none. Body: { email, password, device_name? }
-// =============================================
-if ($path === '/login' && $method === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $email = trim((string)($input['email'] ?? ''));
-    $password = (string)($input['password'] ?? '');
-    if ($email === '' || $password === '') respond(400, ['error' => 'email and password are required']);
-
-    $db = getDB();
-    // Brute-force brake: 10 failed tries per 15 min per IP
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    try {
-        $db->exec("CREATE TABLE IF NOT EXISTS login_attempts (ip VARCHAR(45) NOT NULL, attempted_at DATETIME NOT NULL, INDEX idx_ip_time (ip, attempted_at)) ENGINE=InnoDB");
-        $db->exec("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-        $cnt = $db->prepare('SELECT COUNT(*) FROM login_attempts WHERE ip = ?');
-        $cnt->execute([$ip]);
-        if ((int)$cnt->fetchColumn() >= 10) respond(429, ['error' => 'Too many attempts. Wait 15 minutes and try again.']);
-    } catch (Exception $e) { /* table trouble must not block login */ }
-
-    $stmt = $db->prepare('SELECT id, name, password FROM users WHERE email = ? AND is_active = 1');
-    $stmt->execute([$email]);
-    $u = $stmt->fetch();
-    if (!$u || !password_verify($password, $u['password'])) {
-        try { $db->prepare('INSERT INTO login_attempts (ip, attempted_at) VALUES (?, NOW())')->execute([$ip]); } catch (Exception $e) {}
-        respond(401, ['error' => 'Wrong email or password']);
-    }
-
-    $keyStmt = $db->prepare('SELECT api_key FROM api_keys WHERE user_id = ? AND is_active = 1 ORDER BY id ASC LIMIT 1');
-    $keyStmt->execute([$u['id']]);
-    $apiKey = $keyStmt->fetchColumn();
-    if (!$apiKey) {
-        $apiKey = bin2hex(random_bytes(24));
-        $db->prepare('INSERT INTO api_keys (user_id, api_key, label) VALUES (?, ?, ?)')->execute([$u['id'], $apiKey, 'Phone app']);
-    }
-    respond(200, ['success' => true, 'api_key' => $apiKey, 'name' => $u['name'], 'email' => $email]);
-}
-
-// =============================================
 // GET /send - Simple URL-based send (for billing systems)
 // Usage: api.php?action=send&to=254712345678&msg=Hello&apikey=YOURKEY
 // =============================================
@@ -376,6 +359,7 @@ if ($method === 'GET' && ($path === '/send' || isset($_GET['to']))) {
 $auth = authenticate();
 $authUserId = $auth['user_id'];
 $authKeyId = $auth['key_id'];
+$authDeviceId = $auth['device_id'] ?? null;   // set when the caller used a device key
 
 // =============================================
 // POST /send - Queue a new message (JSON body)
@@ -461,9 +445,12 @@ if ($path === '/send' && $method === 'POST') {
     $assignedDeviceId = null;
     $pinned = 0;
     if ($replyMode) {
-        // An explicit line is honoured or refused, never swapped for another
-        // number; only the "reply" mode without a line looks up the last chat.
-        $route = $line !== '' ? findDeviceByLine($authUserId, $line) : findRouteByIncoming($authUserId, $phone);
+        // An explicit line is honoured first. With "reply" set as well, a line
+        // nobody owns (number not filled in on the Devices page yet) falls back
+        // to the phone+app the customer's last message came in on - still
+        // "the number they wrote to", never some other phone.
+        $route = $line !== '' ? findDeviceByLine($authUserId, $line) : null;
+        if (!$route && ($line === '' || !empty($input['reply']))) $route = findRouteByIncoming($authUserId, $phone);
         if (!$route) {
             respond(409, ['error' => $line !== ''
                 ? "No phone is registered with the number $line. Set the number in the FreeISP Replies app on that phone."
@@ -572,7 +559,9 @@ if ($path === '/send-bulk' && $method === 'POST') {
 // =============================================
 if ($path === '/pending' && $method === 'GET') {
     $limit = min(intval($_GET['limit'] ?? 10), 50);
-    $deviceId = $_GET['device_id'] ?? null;
+    // A device key names the phone; the app's own id is only a fallback for
+    // phones still using an account key.
+    $deviceId = $authDeviceId ?: ($_GET['device_id'] ?? null);
     $deviceName = $_GET['device_name'] ?? 'Unknown';
 
     $db = getDB();
@@ -729,7 +718,7 @@ if ($path === '/inbound' && $method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!is_array($input)) respond(400, ['error' => 'Invalid JSON body']);
 
-    $deviceId = (string)($input['device_id'] ?? '');
+    $deviceId = $authDeviceId ?: (string)($input['device_id'] ?? '');
     $items = $input['messages'] ?? null;
     if ($deviceId === '' || !is_array($items)) respond(400, ['error' => 'device_id and messages[] are required']);
 
