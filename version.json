@@ -1,6 +1,6 @@
 {
-    "versionCode": 8,
-    "versionName": "1.4.1",
+    "versionCode": 9,
+    "versionName": "1.4.2",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.4.1: The phone reports its app version to the dashboard. v1.4.0: saved contacts show their real number (allow the Contacts permission); old backlog is never forwarded."
+    "changelog": "v1.4.2: Saved contacts are never mistaken for a phone number - the number comes from Contacts or the chat is marked 'number hidden'. Allow the Contacts permission when asked."
 }
