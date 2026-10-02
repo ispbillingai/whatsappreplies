@@ -1,6 +1,6 @@
 {
-    "versionCode": 1,
-    "versionName": "1.0.0",
+    "versionCode": 2,
+    "versionName": "1.1.0",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.0.0: Initial release of FreeISP Replies, forked from FreeISP WA v2.6.1."
+    "changelog": "v1.1.0: Forward incoming WhatsApp messages to the server. New Monitor card: choose WhatsApp, Business or Both, and set this phone's number(s) so replies leave from the same line."
 }
