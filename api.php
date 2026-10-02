@@ -593,6 +593,17 @@ if ($path === '/pending' && $method === 'GET') {
         }
         $sets = []; $vals = [];
         if ($phoneWaType !== null) { $sets[] = 'whatsapp_type = ?'; $vals[] = $phoneWaType; }
+        // Forwarding diagnostics (only when the app sends them)
+        if (isset($_GET['fwd']))      { $sets[] = 'fwd_enabled = ?';    $vals[] = (int)$_GET['fwd']; }
+        if (isset($_GET['nl_bound'])) { $sets[] = 'nl_bound = ?';       $vals[] = (int)$_GET['nl_bound']; }
+        if (isset($_GET['in_seen']))  { $sets[] = 'inbound_seen = ?';   $vals[] = (int)$_GET['in_seen']; }
+        if (isset($_GET['in_queue'])) { $sets[] = 'inbound_queued = ?'; $vals[] = (int)$_GET['in_queue']; }
+        if (isset($_GET['last_notif']) && $_GET['last_notif'] !== '') {
+            // "epochSeconds|package|why" - what the listener last saw from WhatsApp and what it did with it
+            $parts = explode('|', (string)$_GET['last_notif'], 2);
+            $sets[] = 'last_notif_at = FROM_UNIXTIME(?)'; $vals[] = (int)$parts[0];
+            $sets[] = 'last_notif_info = ?'; $vals[] = mb_substr($parts[1] ?? '', 0, 255);
+        }
         if ($waNumber !== null)    { $sets[] = 'wa_number = ?'; $vals[] = $waNumber !== '' ? $waNumber : null; }
         if ($waBizNumber !== null) { $sets[] = 'wa_business_number = ?'; $vals[] = $waBizNumber !== '' ? $waBizNumber : null; }
         if ($sets) {

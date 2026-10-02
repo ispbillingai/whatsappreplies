@@ -1,6 +1,6 @@
 {
-    "versionCode": 4,
-    "versionName": "1.3.0",
+    "versionCode": 5,
+    "versionName": "1.3.1",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.3.0: One key per phone - add the phone on the dashboard's Devices page and paste its key into the app. No numbers to type on the phone. Monitor card picks WhatsApp, Business or Both."
+    "changelog": "v1.3.1: Forwarding diagnostics - the Devices page now shows whether forwarding is on, whether the notification listener is bound, and what the app did with the last WhatsApp notification."
 }

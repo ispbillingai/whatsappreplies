@@ -363,6 +363,22 @@ function copyDevKey(btn, key) {
                                 <span class="badge bg-<?= ($dev['svc_battery'] ?? 0) ? 'success' : 'secondary' ?> bg-opacity-75" style="font-size:9px;" title="Battery Optimization Disabled">
                                     <i class="bi bi-battery-charging"></i> <?= ($dev['svc_battery'] ?? 0) ? 'OK' : 'OFF' ?>
                                 </span>
+                                <?php if (isset($dev['fwd_enabled'])): ?>
+                                <span class="badge bg-<?= $dev['fwd_enabled'] ? 'success' : 'danger' ?> bg-opacity-75" style="font-size:9px;" title="Forward incoming messages (Monitor card in the app)">
+                                    <i class="bi bi-arrow-up-right-circle"></i> FWD <?= $dev['fwd_enabled'] ? 'ON' : 'OFF' ?>
+                                </span>
+                                <span class="badge bg-<?= $dev['nl_bound'] ? 'success' : 'danger' ?> bg-opacity-75" style="font-size:9px;" title="Notification listener actually bound by Android (if OFF while access is granted: toggle Notification access off/on)">
+                                    <i class="bi bi-bell"></i> LISTENER <?= $dev['nl_bound'] ? 'OK' : 'NOT BOUND' ?>
+                                </span>
+                                <span class="badge bg-secondary bg-opacity-75" style="font-size:9px;" title="Messages seen / waiting to upload">
+                                    <i class="bi bi-inbox"></i> <?= (int)$dev['inbound_seen'] ?> seen · <?= (int)$dev['inbound_queued'] ?> queued
+                                </span>
+                                <?php if (!empty($dev['last_notif_at'])): ?>
+                                <div class="text-muted" style="font-size:10px;" title="Last WhatsApp notification the listener looked at">
+                                    Last notif <?= fmtTime($dev['last_notif_at'], 'M d H:i:s') ?>: <?= htmlspecialchars($dev['last_notif_info'] ?? '') ?>
+                                </div>
+                                <?php endif; ?>
+                                <?php endif; ?>
                             </div>
                         </td>
                         <td>

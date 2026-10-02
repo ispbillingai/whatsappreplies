@@ -14,7 +14,7 @@ ini_set('error_log', __DIR__ . '/error.log');
  * applyMigrations() below, otherwise existing installs will never pick it up:
  * migrations only run when the recorded version is lower than this number.
  */
-define('WA_SCHEMA_VERSION', 3);
+define('WA_SCHEMA_VERSION', 4);
 
 function getDB() {
     static $pdo = null;
@@ -259,6 +259,14 @@ function applyMigrations($db) {
         // One key per phone, made on the Devices page and typed into the app:
         // the server then knows exactly which phone is talking to it.
         ['devices', 'device_key', "ALTER TABLE devices ADD COLUMN device_key VARCHAR(64) NULL UNIQUE AFTER device_id"],
+        // Forwarding diagnostics the app reports on every poll, so "nothing
+        // arrived" can be read off the Devices page instead of the phone.
+        ['devices', 'fwd_enabled', "ALTER TABLE devices ADD COLUMN fwd_enabled TINYINT(1) NULL"],
+        ['devices', 'nl_bound', "ALTER TABLE devices ADD COLUMN nl_bound TINYINT(1) NULL"],
+        ['devices', 'inbound_seen', "ALTER TABLE devices ADD COLUMN inbound_seen INT NULL"],
+        ['devices', 'inbound_queued', "ALTER TABLE devices ADD COLUMN inbound_queued INT NULL"],
+        ['devices', 'last_notif_at', "ALTER TABLE devices ADD COLUMN last_notif_at DATETIME NULL"],
+        ['devices', 'last_notif_info', "ALTER TABLE devices ADD COLUMN last_notif_info VARCHAR(255) NULL"],
         // A reply to an incoming message must leave from the SAME phone+app it
         // arrived on, so pinned messages are never reassigned to another device.
         ['messages', 'pinned', "ALTER TABLE messages ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER priority"],
