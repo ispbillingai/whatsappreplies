@@ -140,10 +140,10 @@ renderHeader('Installation Guide', 'installation');
                 <p class="mb-1">Launch FreeISP Replies and fill in:</p>
                 <table class="table table-sm table-bordered small mb-1">
                     <tr><td class="fw-bold" style="width:130px;">Server URL</td><td><code>https://whatsappreplies.ispledger.com</code> (must start with https://)</td></tr>
-                    <tr><td class="fw-bold">API Key</td><td>Copy from the <strong>Dashboard</strong> page (top of page)</td></tr>
+                    <tr><td class="fw-bold">Email &amp; Password</td><td>The same login you use for this dashboard</td></tr>
                     <tr><td class="fw-bold">Poll Interval</td><td>How often to check for new messages (default: 5 seconds)</td></tr>
                 </table>
-                <p class="mb-0 small">Tap <strong>"Save Settings"</strong>, then <strong>"Test Connection"</strong> to verify. The WhatsApp type (Personal or Business) is controlled from the dashboard.</p>
+                <p class="mb-0 small">Tap <strong>"Sign in &amp; Save"</strong>, then <strong>"Test Connection"</strong> to verify. In the <strong>Monitor</strong> card choose WhatsApp, Business or Both, enter this phone's number for each, and switch on <em>Forward new messages</em>.</p>
             </div>
         </div>
 
@@ -266,7 +266,7 @@ renderHeader('Installation Guide', 'installation');
                         <ul class="mb-0">
                             <li>Make sure the relay service is <strong>running</strong> (green status in the app)</li>
                             <li>Check your <strong>internet connection</strong> on the phone</li>
-                            <li>Verify the <strong>Server URL</strong> and <strong>API Key</strong> are correct (use "Test Connection")</li>
+                            <li>Verify you are <strong>signed in</strong> with the right email and password (use "Test Connection")</li>
                             <li>Make sure <strong>Battery Optimization</strong> is disabled for FreeISP Replies</li>
                         </ul>
                     </div>

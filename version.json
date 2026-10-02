@@ -1,6 +1,6 @@
 {
-    "versionCode": 2,
-    "versionName": "1.1.0",
+    "versionCode": 3,
+    "versionName": "1.2.0",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.1.0: Forward incoming WhatsApp messages to the server. New Monitor card: choose WhatsApp, Business or Both, and set this phone's number(s) so replies leave from the same line."
+    "changelog": "v1.2.0: Sign in with your dashboard email and password - no API key to copy. v1.1.0: Forward incoming WhatsApp messages; Monitor card to choose WhatsApp, Business or Both and set this phone's numbers."
 }

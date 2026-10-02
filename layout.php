@@ -174,9 +174,6 @@ function renderHeader($title, $activePage = '') {
             <a href="send.php" class="nav-link <?= $activePage === 'send' ? 'active' : '' ?>">
                 <i class="bi bi-send-fill"></i> Send Message
             </a>
-            <a href="api-keys.php" class="nav-link <?= $activePage === 'apikeys' ? 'active' : '' ?>">
-                <i class="bi bi-key-fill"></i> API Keys
-            </a>
             <a href="devices.php" class="nav-link <?= $activePage === 'devices' ? 'active' : '' ?>">
                 <i class="bi bi-phone-fill"></i> Devices
             </a>

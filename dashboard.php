@@ -251,24 +251,8 @@ renderHeader('Dashboard', 'dashboard');
                         <i class="bi bi-phone text-warning" style="font-size:18px;"></i>
                         <strong>For the FreeISP Replies App:</strong>
                     </div>
-                    <p class="mb-0 opacity-75">Copy only the <strong>API Key below</strong> <i class="bi bi-arrow-down"></i> and paste it into the app on your phone. This key links your phone to your account.</p>
+                    <p class="mb-0 opacity-75">Sign in inside the app with the <strong>same email and password</strong> you use for this dashboard. Nothing to copy.</p>
                 </div>
-            </div>
-        </div>
-
-        <div class="row g-2 mb-3">
-            <div class="col-md-8">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-dark border-0 text-muted" style="font-size:11px;">API Key (for the app only)</span>
-                    <input type="text" class="form-control bg-dark border-0 text-white" id="apiKeyDisplay" value="<?= htmlspecialchars($userKey) ?>" readonly style="font-family:monospace; font-size:13px;">
-                    <button class="btn btn-light btn-sm" onclick="copyKey()" title="Copy API Key">
-                        <i class="bi bi-clipboard" id="copyIcon"></i>
-                    </button>
-                </div>
-                <small class="opacity-50" style="font-size:10px;"><i class="bi bi-info-circle"></i> This API key is for your phone app, not your billing system. For billing, copy the full URL above.</small>
-            </div>
-            <div class="col-md-4 text-end">
-                <a href="api-keys.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear"></i> Manage Keys</a>
             </div>
         </div>
 
@@ -951,17 +935,9 @@ var tourSteps = [
         desc: 'This is the <strong>full URL</strong> for your billing system. Click <strong>"Copy URL"</strong> then go to your billing system:<br><strong>Settings > General Settings > WhatsApp Notification</strong> and paste it there.',
     },
     {
-        target: '#apiKeyDisplay',
-        targetParent: true,
-        arrow: 'bi-arrow-up-circle-fill',
-        step: 2,
-        title: 'App API Key (Phone Only)',
-        desc: 'This API key goes into the <strong>FreeISP Replies app</strong> on your phone. It links the phone to your account.<br><br><span class="text-danger"><i class="bi bi-exclamation-triangle"></i> This is NOT for your billing system. The billing system uses the full URL above.</span>',
-    },
-    {
         target: isMobile ? null : '.sidebar a[href="devices.php"]',
         arrow: 'bi-phone-fill',
-        step: 3,
+        step: 2,
         title: 'Manage Devices',
         desc: 'Go to <strong>Devices</strong> in the menu to configure which WhatsApp each phone uses (Personal, Business, or Both).<br><br>You can also see device status, service permissions, and enable load balancing from there.',
         openSidebar: true,
@@ -969,7 +945,7 @@ var tourSteps = [
     {
         target: isMobile ? null : '.sidebar a[href="installation.php"]',
         arrow: 'bi-download',
-        step: 4,
+        step: 3,
         title: 'Installation Guide',
         desc: 'Go to <strong>Installation Guide</strong> in the menu to download the FreeISP Replies Android app and follow step-by-step setup instructions.<br><br><span class="text-warning"><i class="bi bi-exclamation-triangle"></i> After installing: <strong>Settings > Apps > FreeISP Replies > three dots > Allow restricted settings</strong></span>',
         openSidebar: true,
@@ -977,7 +953,7 @@ var tourSteps = [
     {
         target: isMobile ? null : '.sidebar a[href="messages.php"]',
         arrow: 'bi-chat-dots-fill',
-        step: 5,
+        step: 4,
         title: 'Message History',
         desc: 'Go to <strong>Messages</strong> in the menu to view all sent messages. You can filter by status, search by phone number, retry failed messages, and track delivery.',
         openSidebar: true,

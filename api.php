@@ -215,6 +215,47 @@ if ($path === '/health' && $method === 'GET') {
 }
 
 // =============================================
+// POST /login - The phone app signs in with the dashboard email + password
+// (no key to copy around). Returns the account's internal API key, which the
+// app then uses for every other call. Created on the fly if the account has
+// none. Body: { email, password, device_name? }
+// =============================================
+if ($path === '/login' && $method === 'POST') {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $email = trim((string)($input['email'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    if ($email === '' || $password === '') respond(400, ['error' => 'email and password are required']);
+
+    $db = getDB();
+    // Brute-force brake: 10 failed tries per 15 min per IP
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS login_attempts (ip VARCHAR(45) NOT NULL, attempted_at DATETIME NOT NULL, INDEX idx_ip_time (ip, attempted_at)) ENGINE=InnoDB");
+        $db->exec("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+        $cnt = $db->prepare('SELECT COUNT(*) FROM login_attempts WHERE ip = ?');
+        $cnt->execute([$ip]);
+        if ((int)$cnt->fetchColumn() >= 10) respond(429, ['error' => 'Too many attempts. Wait 15 minutes and try again.']);
+    } catch (Exception $e) { /* table trouble must not block login */ }
+
+    $stmt = $db->prepare('SELECT id, name, password FROM users WHERE email = ? AND is_active = 1');
+    $stmt->execute([$email]);
+    $u = $stmt->fetch();
+    if (!$u || !password_verify($password, $u['password'])) {
+        try { $db->prepare('INSERT INTO login_attempts (ip, attempted_at) VALUES (?, NOW())')->execute([$ip]); } catch (Exception $e) {}
+        respond(401, ['error' => 'Wrong email or password']);
+    }
+
+    $keyStmt = $db->prepare('SELECT api_key FROM api_keys WHERE user_id = ? AND is_active = 1 ORDER BY id ASC LIMIT 1');
+    $keyStmt->execute([$u['id']]);
+    $apiKey = $keyStmt->fetchColumn();
+    if (!$apiKey) {
+        $apiKey = bin2hex(random_bytes(24));
+        $db->prepare('INSERT INTO api_keys (user_id, api_key, label) VALUES (?, ?, ?)')->execute([$u['id'], $apiKey, 'Phone app']);
+    }
+    respond(200, ['success' => true, 'api_key' => $apiKey, 'name' => $u['name'], 'email' => $email]);
+}
+
+// =============================================
 // GET /send - Simple URL-based send (for billing systems)
 // Usage: api.php?action=send&to=254712345678&msg=Hello&apikey=YOURKEY
 // =============================================
