@@ -1,0 +1,25 @@
+# Android app (kept locally, not in repo)
+app/
+gradle/
+.gradle/
+.idea/
+build.gradle
+settings.gradle
+gradle.properties
+gradlew
+gradlew.bat
+keystore.jks
+local.properties
+SETUP.md
+txt.txt
+
+# Server folder (files are at repo root instead)
+server/
+
+# Server config & schema (has credentials - differs per environment)
+config.php
+db.sql
+
+# OS files
+.DS_Store
+Thumbs.db
