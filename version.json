@@ -1,6 +1,6 @@
 {
-    "versionCode": 7,
-    "versionName": "1.4.0",
+    "versionCode": 8,
+    "versionName": "1.4.1",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.4.0: Saved contacts now show their real number (looked up in Contacts - allow the permission when asked). WhatsApp's internal ids are no longer mistaken for phone numbers. Old backlog (older than 15 min) is never forwarded, so support does not auto-reply to stale chats."
+    "changelog": "v1.4.1: The phone reports its app version to the dashboard. v1.4.0: saved contacts show their real number (allow the Contacts permission); old backlog is never forwarded."
 }

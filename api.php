@@ -594,6 +594,7 @@ if ($path === '/pending' && $method === 'GET') {
         $sets = []; $vals = [];
         if ($phoneWaType !== null) { $sets[] = 'whatsapp_type = ?'; $vals[] = $phoneWaType; }
         // Forwarding diagnostics (only when the app sends them)
+        if (isset($_GET['app_ver']))  { $sets[] = 'app_version = ?';    $vals[] = mb_substr((string)$_GET['app_ver'], 0, 20); }
         if (isset($_GET['fwd']))      { $sets[] = 'fwd_enabled = ?';    $vals[] = (int)$_GET['fwd']; }
         if (isset($_GET['nl_bound'])) { $sets[] = 'nl_bound = ?';       $vals[] = (int)$_GET['nl_bound']; }
         if (isset($_GET['in_seen']))  { $sets[] = 'inbound_seen = ?';   $vals[] = (int)$_GET['in_seen']; }

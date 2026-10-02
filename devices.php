@@ -363,6 +363,9 @@ function copyDevKey(btn, key) {
                                 <span class="badge bg-<?= ($dev['svc_battery'] ?? 0) ? 'success' : 'secondary' ?> bg-opacity-75" style="font-size:9px;" title="Battery Optimization Disabled">
                                     <i class="bi bi-battery-charging"></i> <?= ($dev['svc_battery'] ?? 0) ? 'OK' : 'OFF' ?>
                                 </span>
+                                <?php if (!empty($dev['app_version'])): ?>
+                                <span class="badge bg-dark bg-opacity-75" style="font-size:9px;" title="App version on the phone">v<?= htmlspecialchars($dev['app_version']) ?></span>
+                                <?php endif; ?>
                                 <?php if (isset($dev['fwd_enabled'])): ?>
                                 <span class="badge bg-<?= $dev['fwd_enabled'] ? 'success' : 'danger' ?> bg-opacity-75" style="font-size:9px;" title="Forward incoming messages (Monitor card in the app)">
                                     <i class="bi bi-arrow-up-right-circle"></i> FWD <?= $dev['fwd_enabled'] ? 'ON' : 'OFF' ?>
