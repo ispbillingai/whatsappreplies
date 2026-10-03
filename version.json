@@ -1,6 +1,6 @@
 {
-    "versionCode": 11,
-    "versionName": "1.4.4",
+    "versionCode": 12,
+    "versionName": "1.4.5",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.4.4: A message can never be forwarded twice, even across app updates. v1.4.3: correct sender numbers for new and saved contacts."
+    "changelog": "v1.4.5: No more duplicate chats - WhatsApp's second copy of each notification is ignored and messages are deduplicated on the chat id. Correct sender numbers for new and saved contacts."
 }

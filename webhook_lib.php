@@ -173,6 +173,7 @@ function retryFailedWebhooks(int $userId, int $max = 3): void {
         "SELECT * FROM incoming_messages
          WHERE user_id = ? AND webhook_status IN ('pending', 'failed') AND webhook_attempts < 6
            AND (webhook_at IS NULL OR webhook_at < DATE_SUB(NOW(), INTERVAL POW(2, webhook_attempts) MINUTE))
+           AND created_at < DATE_SUB(NOW(), INTERVAL 45 SECOND)   -- /inbound is still delivering fresh rows itself
          ORDER BY id ASC LIMIT ?"
     );
     $stmt->bindValue(1, $userId, PDO::PARAM_INT);
