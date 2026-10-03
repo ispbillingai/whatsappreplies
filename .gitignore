@@ -23,3 +23,6 @@ db.sql
 # OS files
 .DS_Store
 Thumbs.db
+
+# local test artefacts
+error.log
