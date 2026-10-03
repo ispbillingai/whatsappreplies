@@ -961,9 +961,13 @@ if ($path === '/inbound-media' && $method === 'POST') {
     if ($key === '') $key = sha1($phone . '|' . $waType . '|' . $ts . '|' . $stored['sha256']);
     $caption = mediaCaptionFromText($text, $stored['kind']);
 
-    // WhatsApp's "You" twin of the same notification carries the same picture.
-    $twin = $db->prepare('SELECT m.id FROM media m WHERE m.device_id = ? AND m.sha256 = ? AND m.id <> ? AND m.direction = \'in\' AND m.created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE) LIMIT 1');
-    $twin->execute([$deviceId, $stored['sha256'], $stored['id']]);
+    // WhatsApp's "You" twin of the same notification carries the same picture:
+    // same bytes, same sender, within two minutes. A customer re-sending a
+    // photo later, or another customer sending the same file, still lands.
+    $twin = $db->prepare('SELECT m.id FROM media m JOIN incoming_messages i ON i.media_id = m.id
+        WHERE m.device_id = ? AND m.sha256 = ? AND m.id <> ? AND m.direction = "in" AND i.phone = ?
+          AND m.created_at > DATE_SUB(NOW(), INTERVAL 2 MINUTE) LIMIT 1');
+    $twin->execute([$deviceId, $stored['sha256'], $stored['id'], $phone]);
     if ($twin->fetchColumn()) {
         mediaDelete($stored['id']);
         respond(200, ['success' => true, 'accepted' => true, 'duplicate' => true]);
