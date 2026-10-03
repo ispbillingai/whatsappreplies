@@ -1,6 +1,6 @@
 {
-    "versionCode": 13,
-    "versionName": "1.4.6",
+    "versionCode": 14,
+    "versionName": "1.5.0",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.4.6: Diagnostics now record what WhatsApp attaches to a notification for photos (groundwork for images/videos). v1.4.5: no duplicate chats."
+    "changelog": "v1.5.0: Photos, videos, voice notes and documents. Incoming media is forwarded to the support panel; files sent from the panel go out through this phone. Allow 'All files access' in the app for videos, voice notes and documents (photos work without it)."
 }
