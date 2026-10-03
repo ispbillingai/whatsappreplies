@@ -10,3 +10,8 @@ RewriteRule ^ - [L]
 
 # Otherwise route to api.php (for API endpoints like /send, /pending, etc.)
 RewriteRule ^(.*)$ api.php [QSA,L]
+
+# Never serve the PHP-FPM per-site settings file
+<Files ".user.ini">
+    Require all denied
+</Files>
