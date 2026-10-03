@@ -198,6 +198,7 @@ function logAction($messageId, $action, $details = null) {
 }
 
 require_once __DIR__ . '/webhook_lib.php';
+require_once __DIR__ . '/media_lib.php';
 
 // Parse request path
 // Support both /api.php/send and ?action=send styles
@@ -231,11 +232,39 @@ if ($path === '/health' && $method === 'GET') {
         respond(200, [
             'status' => 'ok',
             'server_time' => date('Y-m-d H:i:s'),
-            'version' => APP_VERSION
+            'version' => APP_VERSION,
+            'media' => [
+                'dir_writable' => mediaDirWritable(),
+                'free_mb' => is_dir(MEDIA_DIR) ? (int)(@disk_free_space(MEDIA_DIR) / 1048576) : null,
+                'gd' => function_exists('imagecreatefromstring'),
+                'upload_max_filesize' => ini_get('upload_max_filesize'),
+                'post_max_size' => ini_get('post_max_size'),
+            ],
         ]);
     } catch (Exception $e) {
         respond(500, ['status' => 'error', 'message' => 'Database unavailable']);
     }
+}
+
+// =============================================
+// GET /media/<id> - the bytes of a stored file. Either a signed, expiring
+// URL (e, a, s from mediaSignedUrl: the support panel and the phones get
+// these) or an API key whose account owns the file. ?v=thumb for the preview.
+// =============================================
+if ($method === 'GET' && preg_match('#^/media/([a-f0-9]{32})$#', $path, $mm)) {
+    $media = mediaRow($mm[1]);
+    if (!$media) respond(404, ['error' => 'media not found']);
+    $variant = ($_GET['v'] ?? '') === 'thumb' ? 'thumb' : '';
+    $ok = false;
+    if (isset($_GET['e'], $_GET['a'], $_GET['s'])) {
+        $ok = mediaVerify($media, (string)$_GET['a'], (int)$_GET['e'], (string)$_GET['s'], $variant);
+        if (!$ok) respond(403, ['error' => 'link expired or invalid']);
+    } else {
+        $who = authenticate();   // respond()s 401 on a bad key
+        $ok = (int)$who['user_id'] === (int)$media['user_id'];
+        if (!$ok) respond(403, ['error' => 'not your media']);
+    }
+    mediaServe($media, $variant);
 }
 
 // =============================================
@@ -507,6 +536,62 @@ if ($path === '/send' && $method === 'POST') {
 }
 
 // =============================================
+// POST /send-media - the support panel sends a file through a phone.
+// multipart/form-data: phone (or to), line, reply, ref, caption, file.
+// Same routing as /send (line -> that phone+app, reply -> where the
+// customer last wrote), same 201 {id:"app-<n>"} so status events match.
+// =============================================
+if ($path === '/send-media' && $method === 'POST') {
+    if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        respond(413, ['error' => 'Upload too large for the server (post_max_size ' . ini_get('post_max_size') . ')']);
+    }
+    $phone = preg_replace('/[^0-9]/', '', (string)($_POST['phone'] ?? ($_POST['to'] ?? '')));
+    $caption = trim((string)($_POST['caption'] ?? ''));
+    $line = preg_replace('/[^0-9]/', '', (string)($_POST['line'] ?? ''));
+    $replyFlag = !empty($_POST['reply']);
+    $externalRef = isset($_POST['ref']) ? mb_substr((string)$_POST['ref'], 0, 128) : null;
+    if (strlen($phone) < 7) respond(400, ['error' => 'phone is required']);
+
+    $db = getDB();
+    // Rate limit shared with /send
+    $rateStmt = $db->prepare('SELECT COUNT(*) FROM messages WHERE api_key_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE)');
+    $rateStmt->execute([$authKeyId]);
+    if ($rateStmt->fetchColumn() >= 30) respond(429, ['error' => 'Rate limit exceeded — max 30 messages per minute per API key']);
+
+    $route = $line !== '' ? findDeviceByLine($authUserId, $line) : null;
+    if (!$route && ($line === '' || $replyFlag)) $route = findRouteByIncoming($authUserId, $phone);
+    if (!$route) {
+        respond(409, ['error' => $line !== ''
+            ? "No phone is registered with the number $line."
+            : "No incoming message from $phone has been seen, so there is no line to reply from."]);
+    }
+    $on = $db->prepare('SELECT device_name, caps, (last_seen > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) AS online FROM devices WHERE device_id = ? AND user_id = ?');
+    $on->execute([$route['device_id'], $authUserId]);
+    $dev = $on->fetch();
+    if (!$dev || !(int)$dev['online']) respond(503, ['error' => 'The phone "' . ($dev['device_name'] ?? 'unknown') . '" that holds this number is offline (no poll in 5 minutes).']);
+    if (strpos((string)$dev['caps'], 'media') === false) {
+        respond(409, ['error' => 'The phone "' . $dev['device_name'] . '" runs an app version without media support. Update the app on that phone.']);
+    }
+
+    $stored = mediaStoreUpload($authUserId, $route['device_id'], 'out', 'file', $_POST['kind'] ?? null);
+    if (!$stored['ok']) respond($stored['http'], ['error' => $stored['error']]);
+
+    $stmt = $db->prepare(
+        'INSERT INTO messages (user_id, api_key_id, device_id, phone, message, whatsapp_type, priority, pinned, external_ref, kind, media_id) VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?)'
+    );
+    $stmt->execute([$authUserId, $authKeyId, $route['device_id'], $phone, $caption, $route['wa_type'], $externalRef, $stored['kind'], $stored['id']]);
+    $messageId = (int)$db->lastInsertId();
+    incrementUsage($authUserId);
+    logAction($messageId, 'created', "Reply {$stored['kind']} ({$stored['size']} B) pinned for {$route['wa_type']} to $phone (device: " . substr($route['device_id'], 0, 8) . ')');
+
+    respond(201, [
+        'success' => true, 'message_id' => $messageId, 'id' => 'app-' . $messageId, 'status' => 'pending', 'pinned' => true,
+        'device_id' => $route['device_id'], 'whatsapp_type' => $route['wa_type'],
+        'media' => ['id' => $stored['id'], 'kind' => $stored['kind'], 'mime' => $stored['mime'], 'size' => $stored['size'], 'filename' => $stored['filename']],
+    ]);
+}
+
+// =============================================
 // POST /send-bulk - Queue multiple messages
 // =============================================
 if ($path === '/send-bulk' && $method === 'POST') {
@@ -595,6 +680,7 @@ if ($path === '/pending' && $method === 'GET') {
         if ($phoneWaType !== null) { $sets[] = 'whatsapp_type = ?'; $vals[] = $phoneWaType; }
         // Forwarding diagnostics (only when the app sends them)
         if (isset($_GET['app_ver']))  { $sets[] = 'app_version = ?';    $vals[] = mb_substr((string)$_GET['app_ver'], 0, 20); }
+        if (isset($_GET['caps']))     { $sets[] = 'caps = ?';           $vals[] = mb_substr(preg_replace('/[^a-z,]/', '', (string)$_GET['caps']), 0, 100); }
         if (isset($_GET['fwd']))      { $sets[] = 'fwd_enabled = ?';    $vals[] = (int)$_GET['fwd']; }
         if (isset($_GET['nl_bound'])) { $sets[] = 'nl_bound = ?';       $vals[] = (int)$_GET['nl_bound']; }
         if (isset($_GET['in_seen']))  { $sets[] = 'inbound_seen = ?';   $vals[] = (int)$_GET['in_seen']; }
@@ -614,6 +700,7 @@ if ($path === '/pending' && $method === 'GET') {
 
         // Incoming messages whose webhook failed earlier get another go now.
         try { retryFailedWebhooks($authUserId); } catch (Exception $e) { error_log('webhook retry: ' . $e->getMessage()); }
+        try { mediaCleanup(); } catch (Exception $e) { error_log('media cleanup: ' . $e->getMessage()); }
     }
 
     // Auto-expire messages pending for more than 5 minutes to avoid pile-up.
@@ -672,7 +759,7 @@ if ($path === '/pending' && $method === 'GET') {
     if ($deviceId && $deviceWaType && $deviceWaType !== 'both') {
         // Device only supports one type — only fetch matching messages
         $stmt = $db->prepare(
-            'SELECT id, phone, message, whatsapp_type, priority, retry_count, created_at
+            'SELECT id, phone, message, whatsapp_type, priority, retry_count, created_at, kind, media_id
              FROM messages
              WHERE status = "pending" AND retry_count < ? AND user_id = ?
              AND (device_id = ? OR device_id IS NULL)
@@ -684,7 +771,7 @@ if ($path === '/pending' && $method === 'GET') {
     } elseif ($deviceId) {
         // Device supports "both" — fetch any type
         $stmt = $db->prepare(
-            'SELECT id, phone, message, whatsapp_type, priority, retry_count, created_at
+            'SELECT id, phone, message, whatsapp_type, priority, retry_count, created_at, kind, media_id
              FROM messages
              WHERE status = "pending" AND retry_count < ? AND user_id = ?
              AND (device_id = ? OR device_id IS NULL)
@@ -694,7 +781,7 @@ if ($path === '/pending' && $method === 'GET') {
         $stmt->execute([MAX_RETRY_COUNT, $authUserId, $deviceId, $limit]);
     } else {
         $stmt = $db->prepare(
-            'SELECT id, phone, message, whatsapp_type, priority, retry_count, created_at
+            'SELECT id, phone, message, whatsapp_type, priority, retry_count, created_at, kind, media_id
              FROM messages
              WHERE status = "pending" AND retry_count < ? AND user_id = ?
              ORDER BY priority DESC, created_at ASC
@@ -703,6 +790,33 @@ if ($path === '/pending' && $method === 'GET') {
         $stmt->execute([MAX_RETRY_COUNT, $authUserId, $limit]);
     }
     $messages = $stmt->fetchAll();
+
+    // A media reply needs an app that can send files; an older app would try
+    // to send the caption as text and report it delivered. Hold such rows for
+    // this phone instead (they expire after 5 minutes like any other).
+    $devCaps = '';
+    if ($deviceId) {
+        $cs = $db->prepare('SELECT caps FROM devices WHERE device_id = ?');
+        $cs->execute([$deviceId]);
+        $devCaps = (string)$cs->fetchColumn();
+    }
+    foreach ($messages as $i => &$m) {
+        $m['kind'] = $m['kind'] ?? 'text';
+        if ($m['kind'] !== 'text') {
+            if (strpos($devCaps, 'media') === false || empty($m['media_id'])) { unset($messages[$i]); continue; }
+            $media = mediaRow($m['media_id']);
+            if (!$media) { unset($messages[$i]); continue; }
+            $m['caption'] = $m['message'];
+            $m['media_url'] = mediaSignedUrl($media, 'dev:' . $deviceId, 900);
+            $m['media_mime'] = $media['mime'];
+            $m['media_name'] = $media['filename'];
+            $m['media_size'] = (int)$media['size'];
+            $m['media_kind'] = $media['kind'];
+        }
+        unset($m['media_id']);
+    }
+    unset($m);
+    $messages = array_values($messages);
 
     // Mark as sent (processing) and assign to this device
     if (!empty($messages)) {
@@ -797,6 +911,92 @@ if ($path === '/inbound' && $method === 'POST') {
         if ($r = $row->fetch()) {
             try { deliverIncomingWebhook($r); } catch (Exception $e) { error_log('inbound webhook: ' . $e->getMessage()); }
         }
+    }
+    exit;
+}
+
+// =============================================
+// POST /inbound-media - the phone forwards a photo / video / voice note /
+// document it saw arrive. multipart: key, phone, lid, sender_name,
+// whatsapp_type, timestamp, text (WhatsApp's caption line), kind, file.
+// Stored like /inbound, pushed to the webhook with the media block.
+// =============================================
+if ($path === '/inbound-media' && $method === 'POST') {
+    if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        respond(413, ['error' => 'Upload too large for the server (post_max_size ' . ini_get('post_max_size') . ')']);
+    }
+    $deviceId = $authDeviceId ?: (string)($_POST['device_id'] ?? '');
+    if ($deviceId === '') respond(400, ['error' => 'device key required']);
+    $db = getDB();
+    $devStmt = $db->prepare('SELECT * FROM devices WHERE device_id = ? AND user_id = ?');
+    $devStmt->execute([$deviceId, $authUserId]);
+    $device = $devStmt->fetch();
+    if (!$device) respond(404, ['error' => 'Unknown device']);
+
+    $phone = preg_replace('/[^0-9]/', '', (string)($_POST['phone'] ?? ''));
+    $waType = ($_POST['whatsapp_type'] ?? '') === 'whatsapp_business' ? 'whatsapp_business' : 'whatsapp';
+    $name = mb_substr(trim((string)($_POST['sender_name'] ?? '')), 0, 100);
+    $isLid = !empty($_POST['lid']) ? 1 : 0;
+    $ts = (int)($_POST['timestamp'] ?? 0);
+    if ($ts > 20000000000) $ts = intdiv($ts, 1000);
+    if ($ts <= 0 || $ts > time() + 300) $ts = time();
+    $text = trim((string)($_POST['text'] ?? ''));
+    $key = substr((string)($_POST['key'] ?? ''), 0, 64);
+    if (strlen($phone) < 7) respond(400, ['error' => 'phone missing']);
+
+    // Already have it (retry after a lost response)? Say so without touching disk.
+    if ($key !== '') {
+        $chk = $db->prepare('SELECT id, media_id FROM incoming_messages WHERE device_id = ? AND dedupe_key = ?');
+        $chk->execute([$deviceId, $key]);
+        if ($have = $chk->fetch()) {
+            if (!empty($have['media_id'])) respond(200, ['success' => true, 'accepted' => true, 'duplicate' => true, 'id' => (int)$have['id']]);
+            // The text placeholder went out first (older app or a race) and the
+            // panel already has that bubble; the file gets a row of its own.
+            $key = substr($key, 0, 60) . '-m';
+        }
+    }
+
+    $stored = mediaStoreUpload($authUserId, $deviceId, 'in', 'file', $_POST['kind'] ?? null);
+    if (!$stored['ok']) respond($stored['http'], ['error' => $stored['error']]);
+    if ($key === '') $key = sha1($phone . '|' . $waType . '|' . $ts . '|' . $stored['sha256']);
+    $caption = mediaCaptionFromText($text, $stored['kind']);
+
+    // WhatsApp's "You" twin of the same notification carries the same picture.
+    $twin = $db->prepare('SELECT m.id FROM media m WHERE m.device_id = ? AND m.sha256 = ? AND m.id <> ? AND m.direction = \'in\' AND m.created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE) LIMIT 1');
+    $twin->execute([$deviceId, $stored['sha256'], $stored['id']]);
+    if ($twin->fetchColumn()) {
+        mediaDelete($stored['id']);
+        respond(200, ['success' => true, 'accepted' => true, 'duplicate' => true]);
+    }
+
+    {
+        $ins = $db->prepare(
+            'INSERT IGNORE INTO incoming_messages (user_id, device_id, phone, is_lid, sender_name, message, whatsapp_type, line, dedupe_key, received_at, kind, media_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, FROM_UNIXTIME(?), ?, ?)'
+        );
+        $ins->execute([$authUserId, $deviceId, $phone, $isLid, $name !== '' ? $name : null, $caption !== '' ? $caption : $text, $waType,
+                       deviceLine($device, $waType) ?: null, $key, $ts, $stored['kind'], $stored['id']]);
+        if ($ins->rowCount() === 0) {
+            mediaDelete($stored['id']);
+            respond(200, ['success' => true, 'accepted' => true, 'duplicate' => true]);
+        }
+        $newId = (int)$db->lastInsertId();
+    }
+    if ($ts < time() - 3600) {
+        $db->prepare("UPDATE incoming_messages SET webhook_status = 'skipped', webhook_response = 'too old to forward (backlog)', webhook_at = NOW() WHERE id = ?")->execute([$newId]);
+        respond(200, ['success' => true, 'accepted' => true, 'id' => $newId, 'media_id' => $stored['id'], 'stale' => true]);
+    }
+
+    $out = json_encode(['success' => true, 'accepted' => true, 'id' => $newId, 'media_id' => $stored['id'], 'key' => $key]);
+    http_response_code(200);
+    header('Content-Length: ' . strlen($out));
+    header('Connection: close');
+    echo $out;
+    if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); } else { @ob_end_flush(); @flush(); }
+    $row = $db->prepare('SELECT * FROM incoming_messages WHERE id = ?');
+    $row->execute([$newId]);
+    if ($r = $row->fetch()) {
+        try { deliverIncomingWebhook($r); } catch (Exception $e) { error_log('inbound-media webhook: ' . $e->getMessage()); }
     }
     exit;
 }

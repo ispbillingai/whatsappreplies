@@ -14,7 +14,7 @@ ini_set('error_log', __DIR__ . '/error.log');
  * applyMigrations() below, otherwise existing installs will never pick it up:
  * migrations only run when the recorded version is lower than this number.
  */
-define('WA_SCHEMA_VERSION', 7);
+define('WA_SCHEMA_VERSION', 8);
 
 function getDB() {
     static $pdo = null;
@@ -236,6 +236,22 @@ function applyMigrations($db) {
             INDEX idx_webhook (user_id, webhook_status, webhook_attempts),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // One row per stored file (bytes live in MEDIA_DIR, see media_lib.php).
+        "CREATE TABLE IF NOT EXISTS media (
+            id CHAR(32) NOT NULL PRIMARY KEY,
+            user_id INT NOT NULL,
+            device_id VARCHAR(64) NULL,
+            direction ENUM('in', 'out') NOT NULL,
+            kind VARCHAR(16) NOT NULL,
+            mime VARCHAR(100) NOT NULL,
+            size INT UNSIGNED NOT NULL,
+            filename VARCHAR(160) NOT NULL,
+            sha256 CHAR(64) NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_created (user_id, created_at),
+            INDEX idx_device_sha (device_id, sha256),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     ];
 
     foreach ($creates as $sql) {
@@ -270,6 +286,14 @@ function applyMigrations($db) {
         ['devices', 'app_version', "ALTER TABLE devices ADD COLUMN app_version VARCHAR(20) NULL"],
         // `phone` holds WhatsApp's internal LID, not a dialable number (saved contact whose number is hidden)
         ['incoming_messages', 'is_lid', "ALTER TABLE incoming_messages ADD COLUMN is_lid TINYINT(1) NOT NULL DEFAULT 0 AFTER phone"],
+        // Media: kind text|image|video|audio|document|sticker, media_id -> media.id. No AFTER on messages (large table, keep the ALTER instant).
+        ['incoming_messages', 'kind', "ALTER TABLE incoming_messages ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'text'"],
+        ['incoming_messages', 'media_id', "ALTER TABLE incoming_messages ADD COLUMN media_id CHAR(32) NULL"],
+        ['messages', 'kind', "ALTER TABLE messages ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'text'"],
+        ['messages', 'media_id', "ALTER TABLE messages ADD COLUMN media_id CHAR(32) NULL"],
+        ['users', 'media_secret', "ALTER TABLE users ADD COLUMN media_secret VARCHAR(64) NULL"],
+        // What the phone's app can do (reported on every poll): 'media' once it runs 1.5+
+        ['devices', 'caps', "ALTER TABLE devices ADD COLUMN caps VARCHAR(100) NULL"],
         // A reply to an incoming message must leave from the SAME phone+app it
         // arrived on, so pinned messages are never reassigned to another device.
         ['messages', 'pinned', "ALTER TABLE messages ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER priority"],

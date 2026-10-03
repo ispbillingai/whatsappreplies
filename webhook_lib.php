@@ -7,6 +7,7 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/media_lib.php';
 
 if (!function_exists('logAction')) {
     function logAction($messageId, $action, $details = null) {
@@ -140,22 +141,36 @@ function deliverIncomingWebhook(array $row): bool {
     $tsStmt = $db->prepare('SELECT UNIX_TIMESTAMP(received_at) FROM incoming_messages WHERE id = ?');
     $tsStmt->execute([$row['id']]);
     $ts = (int)$tsStmt->fetchColumn() ?: time();
+    $kind = (string)($row['kind'] ?? 'text');
+    $message = [
+        'id'        => 'app-in-' . $row['id'],
+        // A LID is WhatsApp's internal id, not a number: "@lid" tells the panel so.
+        'chatId'    => $row['phone'] . (!empty($row['is_lid']) ? '@lid' : '@c.us'),
+        'fromMe'    => false,
+        'timestamp' => $ts,
+        'pushName'  => (string)($row['sender_name'] ?? ''),
+        'type'      => 'text',
+        'text'      => $row['message'],
+    ];
+    if ($kind !== 'text' && !empty($row['media_id'])) {
+        // Same shape the Baileys bridge used: type image|video|audio|document|sticker,
+        // caption, filename, media{id,mime,size,filename} - plus a signed url because
+        // the bytes are on this box, not the panel's. A file already cleaned up
+        // still yields a row on the panel ("[Image too large to fetch]" style).
+        $media = mediaRow($row['media_id']);
+        $message['type']     = $kind;
+        $message['caption']  = $row['message'];
+        $message['text']     = $row['message'];
+        $message['filename'] = $media['filename'] ?? '';
+        $message['media']    = $media ? mediaWebhookBlock($media) : null;
+    }
     $payload = [
         'event'     => 'message',
         'source'    => 'app',
         'line'      => (string)($row['line'] ?? ''),
         'device_id' => $row['device_id'],
         'wa_type'   => $row['whatsapp_type'],
-        'message'   => [
-            'id'        => 'app-in-' . $row['id'],
-            // A LID is WhatsApp's internal id, not a number: "@lid" tells the panel so.
-            'chatId'    => $row['phone'] . (!empty($row['is_lid']) ? '@lid' : '@c.us'),
-            'fromMe'    => false,
-            'timestamp' => $ts,
-            'pushName'  => (string)($row['sender_name'] ?? ''),
-            'type'      => 'text',
-            'text'      => $row['message'],
-        ],
+        'message'   => $message,
     ];
     $res = fireWebhook($userId, $payload);
     $db->prepare('UPDATE incoming_messages SET webhook_status = ?, webhook_attempts = webhook_attempts + 1, webhook_response = ?, webhook_at = NOW() WHERE id = ?')
