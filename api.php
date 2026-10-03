@@ -603,7 +603,7 @@ if ($path === '/pending' && $method === 'GET') {
             // "epochSeconds|package|why" - what the listener last saw from WhatsApp and what it did with it
             $parts = explode('|', (string)$_GET['last_notif'], 2);
             $sets[] = 'last_notif_at = FROM_UNIXTIME(?)'; $vals[] = (int)$parts[0];
-            $sets[] = 'last_notif_info = ?'; $vals[] = mb_substr($parts[1] ?? '', 0, 255);
+            $sets[] = 'last_notif_info = ?'; $vals[] = mb_substr($parts[1] ?? '', 0, 4000);
         }
         if ($waNumber !== null)    { $sets[] = 'wa_number = ?'; $vals[] = $waNumber !== '' ? $waNumber : null; }
         if ($waBizNumber !== null) { $sets[] = 'wa_business_number = ?'; $vals[] = $waBizNumber !== '' ? $waBizNumber : null; }

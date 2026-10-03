@@ -1,6 +1,6 @@
 {
-    "versionCode": 12,
-    "versionName": "1.4.5",
+    "versionCode": 13,
+    "versionName": "1.4.6",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.4.5: No more duplicate chats - WhatsApp's second copy of each notification is ignored and messages are deduplicated on the chat id. Correct sender numbers for new and saved contacts."
+    "changelog": "v1.4.6: Diagnostics now record what WhatsApp attaches to a notification for photos (groundwork for images/videos). v1.4.5: no duplicate chats."
 }

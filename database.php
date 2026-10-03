@@ -14,7 +14,7 @@ ini_set('error_log', __DIR__ . '/error.log');
  * applyMigrations() below, otherwise existing installs will never pick it up:
  * migrations only run when the recorded version is lower than this number.
  */
-define('WA_SCHEMA_VERSION', 6);
+define('WA_SCHEMA_VERSION', 7);
 
 function getDB() {
     static $pdo = null;
@@ -300,6 +300,8 @@ function applyMigrations($db) {
         ['messages', 'status',
          "enum('pending','sent','delivered','failed','expired')",
          "ALTER TABLE messages MODIFY COLUMN status ENUM('pending', 'sent', 'delivered', 'failed', 'expired') DEFAULT 'pending'"],
+        // The listener's diagnostic line grew past 255 chars once it included the raw notification ids and the media probe.
+        ['devices', 'last_notif_info', 'text', "ALTER TABLE devices MODIFY COLUMN last_notif_info TEXT NULL"],
     ];
 
     foreach ($modifies as [$table, $column, $wantType, $sql]) {

@@ -378,7 +378,7 @@ function copyDevKey(btn, key) {
                                 </span>
                                 <?php if (!empty($dev['last_notif_at'])): ?>
                                 <div class="text-muted" style="font-size:10px;" title="Last WhatsApp notification the listener looked at">
-                                    Last notif <?= fmtTime($dev['last_notif_at'], 'M d H:i:s') ?>: <?= htmlspecialchars($dev['last_notif_info'] ?? '') ?>
+                                    Last notif <?= fmtTime($dev['last_notif_at'], 'M d H:i:s') ?>: <span style="word-break:break-all;"><?= htmlspecialchars($dev['last_notif_info'] ?? '') ?></span>
                                 </div>
                                 <?php endif; ?>
                                 <?php endif; ?>
