@@ -1,6 +1,6 @@
 {
-    "versionCode": 14,
-    "versionName": "1.5.0",
+    "versionCode": 15,
+    "versionName": "1.5.1",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.0: Photos, videos, voice notes and documents. Incoming media is forwarded to the support panel; files sent from the panel go out through this phone. Allow 'All files access' in the app for videos, voice notes and documents (photos work without it)."
+    "changelog": "v1.5.1: The service restarts itself after an app update (it used to stay off until you pressed Start). v1.5.0: photos, videos, voice notes and documents both ways - allow 'All files access' in the app."
 }
