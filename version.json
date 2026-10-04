@@ -1,6 +1,6 @@
 {
-    "versionCode": 15,
-    "versionName": "1.5.1",
+    "versionCode": 16,
+    "versionName": "1.5.2",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.1: The service restarts itself after an app update (it used to stay off until you pressed Start). v1.5.0: photos, videos, voice notes and documents both ways - allow 'All files access' in the app."
+    "changelog": "v1.5.2: Finds photos saved with Media visibility off (Private folder); reports what it saw when a file is not found."
 }

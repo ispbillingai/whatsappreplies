@@ -548,7 +548,7 @@ if ($path === '/send-media' && $method === 'POST') {
     $phone = preg_replace('/[^0-9]/', '', (string)($_POST['phone'] ?? ($_POST['to'] ?? '')));
     $caption = trim((string)($_POST['caption'] ?? ''));
     $line = preg_replace('/[^0-9]/', '', (string)($_POST['line'] ?? ''));
-    $replyFlag = !empty($_POST['reply']);
+    $replyFlag = bridgeBoolean($_POST['reply'] ?? false);
     $externalRef = isset($_POST['ref']) ? mb_substr((string)$_POST['ref'], 0, 128) : null;
     if (strlen($phone) < 7) respond(400, ['error' => 'phone is required']);
 
@@ -565,7 +565,7 @@ if ($path === '/send-media' && $method === 'POST') {
             ? "No phone is registered with the number $line."
             : "No incoming message from $phone has been seen, so there is no line to reply from."]);
     }
-    $on = $db->prepare('SELECT device_name, caps, (last_seen > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) AS online FROM devices WHERE device_id = ? AND user_id = ?');
+    $on = $db->prepare('SELECT device_name, caps, (last_seen > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) AS online FROM devices WHERE device_id = ? AND user_id = ? AND is_active = 1');
     $on->execute([$route['device_id'], $authUserId]);
     $dev = $on->fetch();
     if (!$dev || !(int)$dev['online']) respond(503, ['error' => 'The phone "' . ($dev['device_name'] ?? 'unknown') . '" that holds this number is offline (no poll in 5 minutes).']);
@@ -867,7 +867,7 @@ if ($path === '/inbound' && $method === 'POST') {
         $key = (string)($m['key'] ?? '');
         if ($key === '') $key = sha1($phone . '|' . $waType . '|' . $ts . '|' . $text);
         $key = substr($key, 0, 64);
-        $isLid = !empty($m['lid']) ? 1 : 0;
+        $isLid = bridgeBoolean($m['lid'] ?? false) ? 1 : 0;
 
         if (strlen($phone) < 7 || $text === '') {
             $results[] = ['key' => $key, 'accepted' => false, 'reason' => 'phone or text missing'];
@@ -936,7 +936,7 @@ if ($path === '/inbound-media' && $method === 'POST') {
     $phone = preg_replace('/[^0-9]/', '', (string)($_POST['phone'] ?? ''));
     $waType = ($_POST['whatsapp_type'] ?? '') === 'whatsapp_business' ? 'whatsapp_business' : 'whatsapp';
     $name = mb_substr(trim((string)($_POST['sender_name'] ?? '')), 0, 100);
-    $isLid = !empty($_POST['lid']) ? 1 : 0;
+    $isLid = bridgeBoolean($_POST['lid'] ?? false) ? 1 : 0;
     $ts = (int)($_POST['timestamp'] ?? 0);
     if ($ts > 20000000000) $ts = intdiv($ts, 1000);
     if ($ts <= 0 || $ts > time() + 300) $ts = time();

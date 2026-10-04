@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/layout.php';
+require_once __DIR__ . '/media_preview.php';
 requireLogin();
 
 $db = getDB();
@@ -53,7 +54,7 @@ $totalPages = ceil($total / $perPage);
 // Fetch messages
 $params[] = $perPage;
 $params[] = $offset;
-$stmt = $db->prepare("SELECT m.*, u.name as user_name, d.device_name FROM messages m LEFT JOIN users u ON m.user_id = u.id LEFT JOIN devices d ON m.device_id = d.device_id $whereClause ORDER BY m.created_at DESC LIMIT ? OFFSET ?");
+$stmt = $db->prepare("SELECT m.*, u.name as user_name, d.device_name, media.filename AS media_filename FROM messages m LEFT JOIN users u ON m.user_id = u.id LEFT JOIN devices d ON m.device_id = d.device_id LEFT JOIN media ON media.id = m.media_id AND media.user_id = m.user_id $whereClause ORDER BY m.created_at DESC LIMIT ? OFFSET ?");
 $stmt->execute($params);
 $messages = $stmt->fetchAll();
 
@@ -159,6 +160,7 @@ renderHeader('Messages', 'messages');
                         <td><strong>#<?= $msg['id'] ?></strong></td>
                         <td class="text-nowrap"><i class="bi bi-telephone"></i> <?= htmlspecialchars($msg['phone']) ?></td>
                         <td>
+                            <?php renderMessageMedia($msg); ?>
                             <div class="msg-preview" title="<?= htmlspecialchars($msg['message']) ?>">
                                 <?= htmlspecialchars($msg['message']) ?>
                             </div>

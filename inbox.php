@@ -4,6 +4,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/webhook_lib.php';
+require_once __DIR__ . '/media_preview.php';
 requireLogin();
 
 $db = getDB();
@@ -48,8 +49,9 @@ $cnt->execute($params);
 $total = (int)$cnt->fetchColumn();
 
 $stmt = $db->prepare(
-    "SELECT i.*, d.device_name
+    "SELECT i.*, d.device_name, media.filename AS media_filename
      FROM incoming_messages i LEFT JOIN devices d ON d.device_id = i.device_id
+     LEFT JOIN media ON media.id = i.media_id AND media.user_id = i.user_id
      $whereSql ORDER BY i.id DESC LIMIT $perPage OFFSET $offset"
 );
 $stmt->execute($params);
@@ -138,7 +140,10 @@ renderHeader('Inbox', 'inbox');
                             <code class="small"><?= htmlspecialchars($r['phone']) ?></code>
                             <?php if (!empty($r['is_lid'])): ?><span class="badge bg-secondary" title="WhatsApp hid this contact's number; this is its internal id">number hidden</span><?php endif; ?>
                         </td>
-                        <td class="small" style="max-width:420px; white-space:pre-wrap; word-break:break-word;"><?= htmlspecialchars(mb_strimwidth($r['message'], 0, 400, '…')) ?></td>
+                        <td class="small" style="max-width:420px; word-break:break-word;">
+                            <?php renderMessageMedia($r); ?>
+                            <div style="white-space:pre-wrap"><?= htmlspecialchars(mb_strimwidth($r['message'], 0, 400, '…')) ?></div>
+                        </td>
                         <td class="small">
                             <span class="badge <?= $r['whatsapp_type'] === 'whatsapp_business' ? 'bg-primary' : 'bg-success' ?> bg-opacity-75">
                                 <?= $r['whatsapp_type'] === 'whatsapp_business' ? 'Business' : 'WhatsApp' ?>

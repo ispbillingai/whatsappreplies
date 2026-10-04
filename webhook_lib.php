@@ -9,6 +9,12 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/media_lib.php';
 
+// JSON carries booleans, but multipart fields arrive as strings. In PHP,
+// !empty('false') is true, which used to turn real phone numbers into LIDs.
+function bridgeBoolean($value): bool {
+    return filter_var($value, FILTER_VALIDATE_BOOLEAN) === true;
+}
+
 if (!function_exists('logAction')) {
     function logAction($messageId, $action, $details = null) {
         $db = getDB();

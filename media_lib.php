@@ -27,9 +27,10 @@ const MEDIA_CAPS = [
 // Sniffed MIME -> kind. Anything else is refused (415).
 const MEDIA_MIMES = [
     'image/jpeg' => 'image', 'image/png' => 'image', 'image/webp' => 'image', 'image/gif' => 'image',
-    'video/mp4' => 'video', 'video/3gpp' => 'video', 'video/quicktime' => 'video',
+    'video/mp4' => 'video', 'video/3gpp' => 'video', 'video/quicktime' => 'video', 'video/webm' => 'video',
     'audio/ogg' => 'audio', 'audio/opus' => 'audio', 'audio/mpeg' => 'audio', 'audio/mp4' => 'audio',
-    'audio/x-m4a' => 'audio', 'audio/aac' => 'audio', 'audio/amr' => 'audio', 'audio/x-wav' => 'audio', 'audio/wav' => 'audio',
+    'audio/x-m4a' => 'audio', 'audio/aac' => 'audio', 'audio/amr' => 'audio', 'audio/amr-wb' => 'audio', 'audio/x-wav' => 'audio', 'audio/wav' => 'audio',
+    'audio/webm' => 'audio', 'audio/flac' => 'audio', 'audio/aiff' => 'audio', 'audio/3gpp' => 'audio',
     'application/pdf' => 'document', 'text/plain' => 'document', 'text/csv' => 'document', 'application/zip' => 'document',
     'application/msword' => 'document',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'document',
@@ -37,13 +38,17 @@ const MEDIA_MIMES = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'document',
     'application/vnd.ms-powerpoint' => 'document',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'document',
+    'application/rtf' => 'document', 'application/vnd.oasis.opendocument.text' => 'document',
+    'application/vnd.oasis.opendocument.spreadsheet' => 'document', 'application/vnd.oasis.opendocument.presentation' => 'document',
+    'application/vnd.rar' => 'document', 'application/x-7z-compressed' => 'document',
 ];
 
 const MEDIA_EXT = [
     'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif',
-    'video/mp4' => 'mp4', 'video/3gpp' => '3gp', 'video/quicktime' => 'mov',
+    'video/mp4' => 'mp4', 'video/3gpp' => '3gp', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
     'audio/ogg' => 'ogg', 'audio/opus' => 'opus', 'audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a',
-    'audio/aac' => 'aac', 'audio/amr' => 'amr', 'audio/x-wav' => 'wav', 'audio/wav' => 'wav',
+    'audio/aac' => 'aac', 'audio/amr' => 'amr', 'audio/amr-wb' => 'amr', 'audio/x-wav' => 'wav', 'audio/wav' => 'wav',
+    'audio/webm' => 'webm', 'audio/flac' => 'flac', 'audio/aiff' => 'aiff', 'audio/3gpp' => '3gp',
     'application/pdf' => 'pdf', 'text/plain' => 'txt', 'text/csv' => 'csv', 'application/zip' => 'zip',
 ];
 
@@ -63,11 +68,33 @@ function mediaValidId(string $id): bool {
 // Client filenames are metadata only: never a path.
 function mediaCleanName(string $name, string $mime): string {
     $name = preg_replace('/[\x00-\x1f\/\\\\]+/', '', basename(str_replace('\\', '/', $name)));
-    $name = trim(mb_substr($name, 0, 120));
+    $name = trim(function_exists('mb_substr') ? mb_substr($name, 0, 120) : substr($name, 0, 120));
     if ($name === '' || $name === '.' || $name === '..') {
         $name = 'file.' . (MEDIA_EXT[$mime] ?? 'bin');
     }
     return $name;
+}
+
+// Normalize libmagic aliases. MP4/WebM/3GP are shared audio/video containers:
+// an audio kind hint may narrow one to audio, but cannot override unrelated bytes.
+function mediaFileType(string $mime, ?string $kindHint = null): array {
+    $mime = strtolower(trim(explode(';', $mime, 2)[0]));
+    $aliases = [
+        'application/ogg' => 'audio/ogg', 'audio/x-ogg' => 'audio/ogg',
+        'audio/x-flac' => 'audio/flac', 'audio/x-aiff' => 'audio/aiff',
+        'audio/x-hx-aac-adts' => 'audio/aac', 'audio/vnd.wave' => 'audio/wav',
+        'application/x-zip-compressed' => 'application/zip',
+        'application/x-rar' => 'application/vnd.rar', 'application/x-rar-compressed' => 'application/vnd.rar',
+        'text/rtf' => 'application/rtf',
+    ];
+    $mime = $aliases[$mime] ?? $mime;
+    if ($kindHint === 'audio') {
+        $mime = ['video/mp4' => 'audio/mp4', 'video/webm' => 'audio/webm', 'video/3gpp' => 'audio/3gpp'][$mime] ?? $mime;
+    }
+    $kind = MEDIA_MIMES[$mime] ?? null;
+    if ($mime === 'application/octet-stream' && $kindHint === 'document') $kind = 'document';
+    if ($kindHint === 'sticker' && $kind === 'image') $kind = 'sticker';
+    return ['mime' => $mime, 'kind' => $kind];
 }
 
 /**
@@ -76,6 +103,8 @@ function mediaCleanName(string $name, string $mime): string {
  * or ['ok' => false, 'http' => int, 'error' => string]. Never throws.
  */
 function mediaStoreUpload(int $userId, ?string $deviceId, string $direction, string $field = 'file', ?string $kindHint = null): array {
+    $id = null;
+    try {
     // PHP silently empties $_POST and $_FILES when the body exceeds post_max_size.
     if (empty($_FILES) && empty($_POST) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
         return ['ok' => false, 'http' => 413, 'error' => 'Upload too large for the server (post_max_size ' . ini_get('post_max_size') . ')'];
@@ -85,8 +114,11 @@ function mediaStoreUpload(int $userId, ?string $deviceId, string $direction, str
     if ($f['error'] !== UPLOAD_ERR_OK) {
         $why = [UPLOAD_ERR_INI_SIZE => 'file larger than upload_max_filesize (' . ini_get('upload_max_filesize') . ')',
                 UPLOAD_ERR_FORM_SIZE => 'file larger than the form allows', UPLOAD_ERR_PARTIAL => 'upload was cut short',
-                UPLOAD_ERR_NO_FILE => 'no file received'][$f['error']] ?? ('upload error ' . $f['error']);
-        return ['ok' => false, 'http' => $f['error'] === UPLOAD_ERR_INI_SIZE ? 413 : 400, 'error' => $why];
+                UPLOAD_ERR_NO_FILE => 'no file received', UPLOAD_ERR_NO_TMP_DIR => 'server upload temporary directory is missing',
+                UPLOAD_ERR_CANT_WRITE => 'server could not write the upload', UPLOAD_ERR_EXTENSION => 'server extension stopped the upload'][$f['error']] ?? ('upload error ' . $f['error']);
+        $http = in_array($f['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? 413 :
+            (in_array($f['error'], [UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE, UPLOAD_ERR_EXTENSION], true) ? 503 : 400);
+        return ['ok' => false, 'http' => $http, 'error' => $why];
     }
     if (!is_uploaded_file($f['tmp_name'])) return ['ok' => false, 'http' => 400, 'error' => 'not an upload'];
     if (!mediaDirWritable()) return ['ok' => false, 'http' => 503, 'error' => 'media storage not writable on the server'];
@@ -94,21 +126,15 @@ function mediaStoreUpload(int $userId, ?string $deviceId, string $direction, str
         return ['ok' => false, 'http' => 507, 'error' => 'server disk nearly full'];
     }
 
+    if (!function_exists('finfo_open')) return ['ok' => false, 'http' => 503, 'error' => 'The server needs the PHP fileinfo extension to accept attachments'];
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo === false) return ['ok' => false, 'http' => 503, 'error' => 'The server could not inspect the attachment type'];
     $mime  = (string)finfo_file($finfo, $f['tmp_name']);
     finfo_close($finfo);
-    // WhatsApp voice notes are Opus-in-Ogg; finfo may say either.
-    if ($mime === 'application/ogg') $mime = 'audio/ogg';
-    // Opus voice notes with no Ogg container (rare) and documents finfo cannot
-    // name come back as octet-stream: trust the declared kind for documents only.
-    if ($mime === 'application/octet-stream' && $kindHint === 'document') {
-        $mime = 'application/octet-stream';
-        $kind = 'document';
-    } else {
-        $kind = MEDIA_MIMES[$mime] ?? null;
-    }
+    $type = mediaFileType($mime, $kindHint);
+    $mime = $type['mime'];
+    $kind = $type['kind'];
     if ($kind === null) return ['ok' => false, 'http' => 415, 'error' => "Unsupported file type $mime"];
-    if ($kindHint === 'sticker' && $kind === 'image') $kind = 'sticker';
     $size = (int)$f['size'];
     if ($size <= 0) return ['ok' => false, 'http' => 400, 'error' => 'empty file'];
     if ($size > (MEDIA_CAPS[$kind] ?? MEDIA_CAPS['document'])) {
@@ -126,6 +152,7 @@ function mediaStoreUpload(int $userId, ?string $deviceId, string $direction, str
     if ($kind === 'image' || $kind === 'sticker') mediaMakeThumb($part, mediaPath($id, 'thumb'), 240);
     if (!@rename($part, mediaPath($id))) {
         @unlink($part);
+        @unlink(mediaPath($id, 'thumb'));
         return ['ok' => false, 'http' => 500, 'error' => 'could not finalise the file'];
     }
     @file_put_contents(mediaPath($id, 'meta'), json_encode([
@@ -138,6 +165,13 @@ function mediaStoreUpload(int $userId, ?string $deviceId, string $direction, str
        ->execute([$id, $userId, $deviceId, $direction, $kind, $mime, $size, $name, $sha]);
 
     return ['ok' => true, 'id' => $id, 'kind' => $kind, 'mime' => $mime, 'size' => $size, 'filename' => $name, 'sha256' => $sha];
+    } catch (Throwable $e) {
+        if ($id !== null) {
+            foreach (['', 'part', 'thumb', 'meta'] as $variant) @unlink(mediaPath($id, $variant));
+        }
+        error_log('media upload failed: ' . $e->getMessage());
+        return ['ok' => false, 'http' => 503, 'error' => 'The server could not save the attachment. Check media storage and database setup.'];
+    }
 }
 
 // Small JPEG preview for the Inbox and the panel's chat list. GD only; never upscales.
@@ -197,7 +231,11 @@ function mediaBaseUrl(): string {
     $host = $_SERVER['HTTP_HOST'] ?? '';
     if ($host !== '') {
         $https = (($_SERVER['HTTPS'] ?? '') === 'on') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443;
-        return ($https ? 'https' : 'http') . '://' . $host;
+        $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/api.php'));
+        // Some handlers include PATH_INFO in SCRIPT_NAME.
+        $script = preg_replace('#\.php/.*$#', '.php', $script);
+        $directory = rtrim(str_replace('\\', '/', dirname($script)), '/.');
+        return ($https ? 'https' : 'http') . '://' . $host . $directory;
     }
     return rtrim(defined('SERVER_URL') ? SERVER_URL : 'https://whatsappreplies.ispledger.com', '/');
 }
@@ -208,19 +246,66 @@ function mediaVerify(array $media, string $aud, int $exp, string $sig, string $v
     return hash_equals($want, $sig);
 }
 
-// Stream the bytes (or the thumb). Ends the request.
+// null means no supported single-range request; false means unsatisfiable.
+function mediaByteRange(string $header, int $size) {
+    if (!preg_match('/^bytes=(\d*)-(\d*)$/', trim($header), $match) || ($match[1] === '' && $match[2] === '')) return null;
+    if ($size <= 0) return false;
+    if ($match[1] === '') {
+        $length = (int)$match[2];
+        return $length > 0 ? [max(0, $size - $length), $size - 1] : false;
+    }
+    $start = (int)$match[1];
+    $end = $match[2] === '' ? $size - 1 : min((int)$match[2], $size - 1);
+    return $start < $size && $end >= $start ? [$start, $end] : false;
+}
+
+// Stream the bytes (or the thumb). Ends the request. Byte ranges allow audio
+// players to probe duration and seek without downloading the entire recording.
 function mediaServe(array $media, string $variant = ''): void {
-    $path = ($variant === 'thumb' && is_file(mediaPath($media['id'], 'thumb'))) ? mediaPath($media['id'], 'thumb') : mediaPath($media['id']);
+    $isThumb = $variant === 'thumb' && is_file(mediaPath($media['id'], 'thumb'));
+    $path = $isThumb ? mediaPath($media['id'], 'thumb') : mediaPath($media['id']);
     if (!is_file($path)) { http_response_code(404); header('Content-Type: text/plain'); echo 'media expired'; exit; }
-    $mime = $variant === 'thumb' ? 'image/jpeg' : (string)$media['mime'];
+    $stream = @fopen($path, 'rb');
+    if ($stream === false) { http_response_code(503); header('Content-Type: text/plain'); echo 'media unavailable'; exit; }
+    $size = (int)filesize($path);
+    $range = mediaByteRange((string)($_SERVER['HTTP_RANGE'] ?? ''), $size);
+    // A changed/unknown If-Range validator requires the complete response.
+    if (isset($_SERVER['HTTP_IF_RANGE'])) $range = null;
+    $mime = $isThumb ? 'image/jpeg' : (string)$media['mime'];
     header_remove('Content-Type');
     header('Content-Type: ' . $mime);
-    header('Content-Length: ' . filesize($path));
+    header('Accept-Ranges: bytes');
     header('Cache-Control: private, max-age=86400');
     header('X-Content-Type-Options: nosniff');
     $disp = ($media['kind'] === 'document') ? 'attachment' : 'inline';
-    header('Content-Disposition: ' . $disp . '; filename="' . str_replace('"', '', (string)$media['filename']) . '"');
-    readfile($path);
+    $name = str_replace(['"', "\r", "\n"], '', (string)$media['filename']);
+    header('Content-Disposition: ' . $disp . '; filename="' . $name . '"');
+    if ($range === false) {
+        fclose($stream);
+        http_response_code(416);
+        header('Content-Range: bytes */' . $size);
+        header('Content-Length: 0');
+        exit;
+    }
+    $start = 0;
+    $end = $size - 1;
+    if (is_array($range)) {
+        [$start, $end] = $range;
+        http_response_code(206);
+        header('Content-Range: bytes ' . $start . '-' . $end . '/' . $size);
+    }
+    $remaining = max(0, $end - $start + 1);
+    header('Content-Length: ' . $remaining);
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') {
+        fseek($stream, $start);
+        while ($remaining > 0 && !feof($stream)) {
+            $chunk = fread($stream, min(65536, $remaining));
+            if ($chunk === false || $chunk === '') break;
+            echo $chunk;
+            $remaining -= strlen($chunk);
+        }
+    }
+    fclose($stream);
     exit;
 }
 
