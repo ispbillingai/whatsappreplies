@@ -1,6 +1,6 @@
 {
-    "versionCode": 18,
-    "versionName": "1.5.4",
+    "versionCode": 19,
+    "versionName": "1.5.5",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.4: Photos, videos and voice notes received in WhatsApp Business are now found (its media folders are named differently). The Devices page shows what happened to the last media file."
+    "changelog": "v1.5.5: Update Now downloads the update itself (no longer stuck on 'updating'). v1.5.4: media received in WhatsApp Business is found; Devices page shows the last media outcome."
 }
