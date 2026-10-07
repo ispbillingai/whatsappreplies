@@ -376,6 +376,11 @@ function copyDevKey(btn, key) {
                                 <span class="badge bg-secondary bg-opacity-75" style="font-size:9px;" title="Messages seen / waiting to upload">
                                     <i class="bi bi-inbox"></i> <?= (int)$dev['inbound_seen'] ?> seen · <?= (int)$dev['inbound_queued'] ?> queued
                                 </span>
+                                <?php if (!empty($dev['last_media_at'])): ?>
+                                <div class="text-muted" style="font-size:10px;" title="What the app did with the last photo / video / voice note it saw">
+                                    <i class="bi bi-image"></i> Last media <?= fmtTime($dev['last_media_at'], 'M d H:i:s') ?>: <span style="word-break:break-all;"><?= htmlspecialchars($dev['last_media_info'] ?? '') ?></span>
+                                </div>
+                                <?php endif; ?>
                                 <?php if (!empty($dev['last_notif_at'])): ?>
                                 <div class="text-muted" style="font-size:10px;" title="Last WhatsApp notification the listener looked at">
                                     Last notif <?= fmtTime($dev['last_notif_at'], 'M d H:i:s') ?>: <span style="word-break:break-all;"><?= htmlspecialchars($dev['last_notif_info'] ?? '') ?></span>

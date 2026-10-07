@@ -14,7 +14,7 @@ ini_set('error_log', __DIR__ . '/error.log');
  * applyMigrations() below, otherwise existing installs will never pick it up:
  * migrations only run when the recorded version is lower than this number.
  */
-define('WA_SCHEMA_VERSION', 8);
+define('WA_SCHEMA_VERSION', 9);
 
 function getDB() {
     static $pdo = null;
@@ -284,6 +284,8 @@ function applyMigrations($db) {
         ['devices', 'last_notif_at', "ALTER TABLE devices ADD COLUMN last_notif_at DATETIME NULL"],
         ['devices', 'last_notif_info', "ALTER TABLE devices ADD COLUMN last_notif_info VARCHAR(255) NULL"],
         ['devices', 'app_version', "ALTER TABLE devices ADD COLUMN app_version VARCHAR(20) NULL"],
+        ['devices', 'last_media_at', "ALTER TABLE devices ADD COLUMN last_media_at DATETIME NULL"],
+        ['devices', 'last_media_info', "ALTER TABLE devices ADD COLUMN last_media_info TEXT NULL"],
         // `phone` holds WhatsApp's internal LID, not a dialable number (saved contact whose number is hidden)
         ['incoming_messages', 'is_lid', "ALTER TABLE incoming_messages ADD COLUMN is_lid TINYINT(1) NOT NULL DEFAULT 0 AFTER phone"],
         // Media: kind text|image|video|audio|document|sticker, media_id -> media.id. No AFTER on messages (large table, keep the ALTER instant).

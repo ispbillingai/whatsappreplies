@@ -685,6 +685,11 @@ if ($path === '/pending' && $method === 'GET') {
         if (isset($_GET['nl_bound'])) { $sets[] = 'nl_bound = ?';       $vals[] = (int)$_GET['nl_bound']; }
         if (isset($_GET['in_seen']))  { $sets[] = 'inbound_seen = ?';   $vals[] = (int)$_GET['in_seen']; }
         if (isset($_GET['in_queue'])) { $sets[] = 'inbound_queued = ?'; $vals[] = (int)$_GET['in_queue']; }
+        if (isset($_GET['last_media']) && $_GET['last_media'] !== '') {
+            $parts = explode('|', (string)$_GET['last_media'], 2);
+            $sets[] = 'last_media_at = FROM_UNIXTIME(?)'; $vals[] = (int)$parts[0];
+            $sets[] = 'last_media_info = ?'; $vals[] = mb_substr($parts[1] ?? '', 0, 4000);
+        }
         if (isset($_GET['last_notif']) && $_GET['last_notif'] !== '') {
             // "epochSeconds|package|why" - what the listener last saw from WhatsApp and what it did with it
             $parts = explode('|', (string)$_GET['last_notif'], 2);
