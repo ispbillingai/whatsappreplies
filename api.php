@@ -1054,7 +1054,8 @@ if ($path === '/status' && $method === 'POST') {
             'UPDATE messages SET status = "delivered", sent_at = NOW() WHERE id = ?'
         );
         $stmt->execute([$messageId]);
-        logAction($messageId, 'delivered', 'Message sent via WhatsApp');
+        $method = isset($input['method']) ? mb_substr(preg_replace('/[^a-z\-]/', '', (string)$input['method']), 0, 60) : '';
+        logAction($messageId, 'delivered', 'Message sent via WhatsApp' . ($method !== '' ? " ($method)" : ''));
         if ($isPinned) reportStatusWebhook($authUserId, (int)$messageId, 'delivered');
     } elseif ($isPinned) {
         // A reply must leave from the same phone+app the customer wrote to, so

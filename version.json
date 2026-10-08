@@ -1,6 +1,6 @@
 {
-    "versionCode": 20,
-    "versionName": "1.5.6",
+    "versionCode": 21,
+    "versionName": "1.5.7",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.6: If WhatsApp has not downloaded a photo/video/voice note after 40 s, the app opens that chat, taps the download arrow and backs out - the same thing you do by hand - then forwards the file."
+    "changelog": "v1.5.7: The download tap now works for chats whose number is hidden (opens the chat through its notification). Replies sent through the notification are only reported delivered once WhatsApp confirms them; otherwise they are re-sent through the chat screen."
 }
