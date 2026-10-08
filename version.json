@@ -1,6 +1,6 @@
 {
-    "versionCode": 19,
-    "versionName": "1.5.5",
+    "versionCode": 20,
+    "versionName": "1.5.6",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.5: Update Now downloads the update itself (no longer stuck on 'updating'). v1.5.4: media received in WhatsApp Business is found; Devices page shows the last media outcome."
+    "changelog": "v1.5.6: If WhatsApp has not downloaded a photo/video/voice note after 40 s, the app opens that chat, taps the download arrow and backs out - the same thing you do by hand - then forwards the file."
 }
