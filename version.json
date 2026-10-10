@@ -1,6 +1,6 @@
 {
-    "versionCode": 21,
-    "versionName": "1.5.7",
+    "versionCode": 22,
+    "versionName": "1.5.8",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.7: The download tap now works for chats whose number is hidden (opens the chat through its notification). Replies sent through the notification are only reported delivered once WhatsApp confirms them; otherwise they are re-sent through the chat screen."
+    "changelog": "v1.5.8: Replies always go out through the chat screen (no more double messages). The notification inline reply is used only for chats whose number is hidden."
 }

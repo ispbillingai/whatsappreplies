@@ -819,6 +819,12 @@ if ($path === '/pending' && $method === 'GET') {
             $m['media_kind'] = $media['kind'];
         }
         unset($m['media_id']);
+        // A hidden-number (LID) chat cannot be opened by number on the phone.
+        try {
+            $lidSt = $db->prepare('SELECT is_lid FROM incoming_messages WHERE user_id = ? AND phone = ? ORDER BY id DESC LIMIT 1');
+            $lidSt->execute([$authUserId, $m['phone']]);
+            $m['lid'] = (bool)$lidSt->fetchColumn();
+        } catch (Exception $e) { $m['lid'] = false; }
     }
     unset($m);
     $messages = array_values($messages);
