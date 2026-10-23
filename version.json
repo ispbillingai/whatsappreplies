@@ -1,6 +1,6 @@
 {
-    "versionCode": 22,
-    "versionName": "1.5.8",
+    "versionCode": 23,
+    "versionName": "1.5.9",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.8: Replies always go out through the chat screen (no more double messages). The notification inline reply is used only for chats whose number is hidden."
+    "changelog": "v1.5.9: Customer messages that arrive while a reply is being sent (chat open, so WhatsApp shows no notification) are now read off the chat screen and forwarded."
 }
