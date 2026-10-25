@@ -1,6 +1,6 @@
 {
-    "versionCode": 23,
-    "versionName": "1.5.9",
+    "versionCode": 24,
+    "versionName": "1.5.10",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.9: Customer messages that arrive while a reply is being sent (chat open, so WhatsApp shows no notification) are now read off the chat screen and forwarded."
+    "changelog": "v1.5.10: Fixes 1.5.9 forwarding our own replies back to the panel as customer messages."
 }
