@@ -1,6 +1,6 @@
 {
-    "versionCode": 24,
-    "versionName": "1.5.10",
+    "versionCode": 25,
+    "versionName": "1.5.11",
     "apkUrl": "https://whatsappreplies.ispledger.com/whatsapp.apk",
-    "changelog": "v1.5.10: Fixes 1.5.9 forwarding our own replies back to the panel as customer messages."
+    "changelog": "v1.5.11: Photos a customer re-sends now reach the panel as pictures instead of \"Sent a photo\" text; albums and several photos sent in a row from one customer are attached too; the chat is opened once per missing file instead of every few seconds."
 }
